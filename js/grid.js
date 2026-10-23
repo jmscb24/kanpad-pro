@@ -137,7 +137,8 @@
   }
 
   class Editor {
-    constructor(onChange, onStats, toast) {
+    constructor(onChange, onStats, toast, confirm) {
+      this.confirm = confirm;
       this.onChange = onChange; this.onStats = onStats; this.toast = toast;
       this.table = document.getElementById('gridTable');
       this.formula = document.getElementById('gridFormula');
@@ -292,7 +293,7 @@
         try {
           if (file.size > 5 * 1024 * 1024) throw Error('El archivo no puede superar 5 MB.');
           const text = await file.text();
-          if (Object.keys(this.data.cells).length && !confirm('Importar reemplazará los datos de esta hoja. Puedes deshacerlo. ¿Continuar?')) return;
+          if (Object.keys(this.data.cells).length && !await this.confirm('Importar reemplazará los datos de esta hoja. Puedes deshacerlo. ¿Continuar?')) return;
           this.paste(text, file.name.toLowerCase().endsWith('.tsv') ? '\t' : undefined, true);
           this.toast('Hoja importada', 'success');
         } catch (err) { this.toast(err.message, 'error'); }

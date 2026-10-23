@@ -10,6 +10,8 @@
   // Estado de la aplicación
   const state = {
     wh: null,                // Instancia de Kanlane SDK si está conectado
+    ready: false,
+    dirty: false,
     isStandalone: false,     // Modo de desarrollo/local
     isHome: true,
     folders: [],
@@ -23,100 +25,6 @@
     autosaveTimer: null,
     isSaving: false
   };
-
-  // Plantilla de nota por defecto si está vacío
-  const defaultInitialNotes = [
-    {
-      id: 'welcome-doc',
-      title: 'Bienvenido a KanPad Pro',
-      type: 'doc',
-      language: 'markdown',
-      updatedAt: new Date().toISOString(),
-      content: `
-        <h1>🚀 Bienvenido a KanPad Pro para Kanlane</h1>
-        <p>Este es tu nuevo bloc de notas avanzado y procesador de documentos. Diseñado para ofrecer <strong>lo mejor de Google Docs/Word</strong> y <strong>la potencia de Notepad++</strong>.</p>
-        
-        <div class="callout callout-success">
-          <strong>💡 Tip Pro:</strong> Puedes alternar entre el <strong>Modo Documento</strong> (con formato y tablas) y el <strong>Modo Código / Notepad++</strong> (con números de línea y auto-formateo) usando el selector superior.
-        </div>
-
-        <h2>📊 Tablas interactivas</h2>
-        <p>Crea y gestiona tablas fácilmente como en Word o Google Docs:</p>
-        <table>
-          <thead>
-            <tr>
-              <th>Característica</th>
-              <th>Modo Documento</th>
-              <th>Modo Notepad++</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td>Edición enriquecida</td>
-              <td>✅ Negrita, H1/H2, Listas</td>
-              <td>⚡ Texto plano / Monoespaciado</td>
-            </tr>
-            <tr>
-              <td>Tablas y Cajas</td>
-              <td>✅ Tablas completas y alertas</td>
-              <td>❌ No aplica</td>
-            </tr>
-            <tr>
-              <td>Detección y Resaltado</td>
-              <td>✅ Snippets incrustados</td>
-              <td>🚀 Detección y Prettify de código</td>
-            </tr>
-          </tbody>
-        </table>
-
-        <h2>💻 Fragmentos de código incrustados</h2>
-        <p>Puedes incluir código con resaltado de sintaxis dentro de tus documentos:</p>
-        <div class="doc-code-block">
-          <div class="doc-code-header">
-            <span>JavaScript</span>
-            <button class="doc-code-copy-btn" onclick="KanPad.copySnippet(this)">Copiar</button>
-          </div>
-          <pre><code class="language-javascript">// Conexión nativa con Kanlane SDK
-WorkhubPlugin.connect({
-  id: 'com.yalerooo.kanpad-pro',
-  name: 'KanPad Pro'
-}).then(wh => {
-  wh.ui.toast('¡KanPad Pro listo para usar!');
-});</code></pre>
-        </div>
-
-        <p>¡Disfruta organizando tus notas, código y tareas en Kanlane!</p>
-      `
-    },
-    {
-      id: 'demo-code',
-      title: 'Script_Utilidades.js',
-      type: 'code',
-      language: 'javascript',
-      updatedAt: new Date(Date.now() - 3600000).toISOString(),
-      rawCode: `// Ejemplo de código en modo Notepad++
-// Pulsa el botón "⚡ Formatear Código" para ponerlo bonito automáticamente
-
-function procesarTareas(tareas, filtroPrioridad){
-if(!tareas||tareas.length===0){return[];}
-return tareas.filter(t=>t.completada!==true&&t.prioridad===filtroPrioridad)
-.map(t=>{
-return {
-id:t.id,
-titulo:t.titulo.toUpperCase(),
-fecha:new Date().toLocaleDateString()
-};
-});
-}
-
-const configServidor = {
-puerto: 8080,
-modo: "produccion",
-ssl: true,
-plugins: ["kanpad-pro", "timer", "work-report"]
-};`
-    }
-  ];
 
   // Elementos del DOM
   const DOM = {
@@ -163,107 +71,124 @@ plugins: ["kanpad-pro", "timer", "work-report"]
   let grid;
   let savedDocRange = null;
   let manageAction = null;
-  let storageQueue = Promise.resolve();
-  let saveVersion = 0;
+  let store;
+  let saving = null;
+  let saveAgain = false;
+  let projectGeneration = 0;
+  let saveTask = 0;
   let savedInKanlane = false;
+  const MANIFEST = {
+    id: 'com.yalerooo.kanpad-pro', name: 'KanPad Pro', version: '1.3.0',
+    description: 'Notas, documentos, código y hojas Grid organizados en carpetas del proyecto. Sigue la apariencia de Kanlane.',
+    author: 'Javier', homepage: 'https://github.com/jmscb24/kanpad-pro', icon: 'book', color: 214,
+    permissions: ['storage', 'tasks:read', 'ui:extend']
+  };
+  const has = permission => !!state.wh?.has(permission);
+  function connectionMessage(message, retry = false) {
+    document.getElementById('connectionState').hidden = false;
+    document.getElementById('connectionMessage').textContent = message;
+    document.getElementById('btnRetryConnection').hidden = !retry;
+    document.querySelector('.kanpad-app').hidden = true;
+  }
   async function init() {
-    grid = new KanPadGrid.Editor(() => {
-      updateCurrentNoteFromView();
-      triggerAutosave();
-      renderNotesList();
-      updateStats();
-    }, updateStats, showToast);
-    setupEventListeners();
-    updateLineNumbers();
-
+    document.getElementById('btnRetryConnection').onclick = () => location.reload();
+    state.isStandalone = window.parent === window;
     try {
-      if (window.parent !== window && window.WorkhubPlugin && typeof window.WorkhubPlugin.connect === 'function') {
-        state.wh = await window.WorkhubPlugin.connect({
-          id: 'com.yalerooo.kanpad-pro',
-          name: 'KanPad Pro',
-          version: '1.2.0',
-          icon: 'file-text',
-          permissions: ['storage', 'tasks:read', 'tasks:write', 'ui:extend']
+      if (!state.isStandalone) {
+        if (!window.WorkhubPlugin) throw Error('No se ha cargado el SDK de Kanlane. Revisa la conexión y vuelve a abrir el plugin.');
+        state.wh = await WorkhubPlugin.connect(MANIFEST);
+        // Las instalaciones antiguas con ui:extend tienen una segunda instancia oculta.
+        // No debe cargar ni guardar una biblioteca ni abrir el editor.
+        if (state.wh.isBackground) {
+          document.getElementById('connectionState').hidden = true;
+          if (has('ui:extend')) {
+            await state.wh.ui.addButton({ id: 'abrir-kanpad', location: 'command', label: 'Abrir KanPad Pro', icon: 'book' });
+            state.wh.on('action', ({ id }) => { if (id === 'abrir-kanpad') state.wh.ui.openPanel().catch(() => {}); });
+          }
+          return;
+        }
+        if (!has('storage')) throw Error('Activa el permiso «Guardar sus propios datos» en los permisos de KanPad Pro en Kanlane.');
+        state.wh.on('project', reloadProject);
+        state.wh.on('storage', async event => {
+          if (event.scope === 'user' || !['kanpad_library_v2', 'kanpad_notes', 'kanpad_folders'].includes(event.key)) return;
+          if (state.dirty || saving || KanPadDialogs.isOpen) { showToast('Hay cambios en otra ventana. Guarda tus cambios antes de volver a abrir el plugin.', 'important'); return; }
+          await reloadProject();
         });
-        showToast('Conectado con Kanlane exitosamente', 'success');
-      } else {
-        throw new Error('SDK no disponible');
       }
-    } catch (err) {
-      console.info('KanPad Pro corriendo en modo independiente/local:', err.message);
-      state.isStandalone = true;
-      const badge = document.getElementById('envBadge');
-      if (badge) {
-        badge.textContent = 'LOCAL DEV';
-        badge.title = 'Modo independiente. Guardando datos en el navegador.';
-      }
+      store = new KanPadStorage(state.wh);
+      grid = new KanPadGrid.Editor(() => {
+        updateCurrentNoteFromView(); triggerAutosave(); renderNotesList(); updateStats();
+      }, updateStats, showToast, message => KanPadDialogs.confirm(message, 'Importar hoja'));
+      setupEventListeners(); updateLineNumbers();
+      await loadNotes();
+      state.ready = true;
+      document.getElementById('connectionState').hidden = true;
+      document.querySelector('.kanpad-app').hidden = false;
+      document.getElementById('envBadge').textContent = state.isStandalone ? 'LOCAL' : 'KANLANE';
+      document.getElementById('projectName').textContent = state.wh?.context.project?.name || '';
+      DOM.btnKanlaneTasks.hidden = !has('tasks:read');
+      showHome();
+    } catch (error) {
+      state.ready = false;
+      connectionMessage('No se pudo abrir KanPad: ' + error.message, true);
     }
-
-    await loadNotes();
-    renderNotesList();
-
-    showHome();
   }
 
-  /* ==========================================================================
-     Persistencia: Kanlane wh.storage con fallback a localStorage
-     ========================================================================== */
-  async function readStoredArray(key) {
-    if (state.wh && state.wh.storage) {
-      try {
-        const stored = await state.wh.storage.get(key);
-        if (Array.isArray(stored)) return stored;
-      } catch (e) { console.warn('Error leyendo desde wh.storage:', e); }
-    }
+  async function reloadProject() {
+    if (!store) return;
+    const generation = ++projectGeneration;
+    saveTask++; saving = null; saveAgain = false;
+    state.ready = false; state.dirty = false; clearTimeout(state.autosaveTimer);
+    store.invalidate(); state.currentNoteId = null; state.isHome = true;
+    savedDocRange = null; closeModals(); KanPadDialogs.cancel();
+    connectionMessage('Cargando las notas del proyecto…');
     try {
-      const stored = JSON.parse(localStorage.getItem(key));
-      if (Array.isArray(stored)) return stored;
-    } catch (e) { console.warn('Error leyendo almacenamiento local:', e); }
-    return null;
+      await loadNotes();
+      if (generation !== projectGeneration) return;
+      state.activeFolder = 'all'; state.activeFilter = 'all'; state.searchQuery = '';
+      DOM.searchInput.value = ''; DOM.filterTabs.forEach(tab => tab.classList.toggle('active', tab.dataset.filter === 'all'));
+      document.getElementById('projectName').textContent = state.wh?.context.project?.name || '';
+      state.ready = true;
+      document.getElementById('connectionState').hidden = true;
+      document.querySelector('.kanpad-app').hidden = false;
+      showHome();
+    } catch (error) { if (generation === projectGeneration) connectionMessage('No se pudieron cargar las notas: ' + error.message, true); }
   }
 
   async function loadNotes() {
-    const notes = await readStoredArray('kanpad_notes');
-    state.folders = (await readStoredArray('kanpad_folders') || []).filter(f => f && typeof f.id === 'string' && typeof f.name === 'string');
-    // Un array vacío es válido: borrar la última nota no debe restaurar las demos.
-    state.notes = notes === null ? JSON.parse(JSON.stringify(defaultInitialNotes)) : notes;
-    state.notes.forEach(note => {
-      if (!state.folders.some(f => f.id === note.folderId)) note.folderId = null;
-    });
-    if (notes === null) await saveNotes(false);
+    const library = await store.load();
+    state.notes = library.notes;
+    state.folders = library.folders;
+    state.notes.forEach(note => { if (!state.folders.some(folder => folder.id === note.folderId)) note.folderId = null; });
   }
 
-  async function saveNotes(showStatus = true) {
-    if (showStatus) setSavingStatus(true);
+  async function saveNotes() {
+    if (!state.ready) return false;
     updateCurrentNoteFromView();
-    const version = ++saveVersion;
-    const notes = JSON.stringify(state.notes), folders = JSON.stringify(state.folders);
-    let localSaved = false, remoteSaved = false;
-    // El respaldo local es inmediato, incluso al cerrar una ventana con SDK conectado.
-    try {
-      localStorage.setItem('kanpad_notes', notes);
-      localStorage.setItem('kanpad_folders', folders);
-      localSaved = true;
-    } catch (e) { console.warn('Error guardando localmente:', e); }
-    if (state.wh && state.wh.storage) {
-      // Evitar que un guardado anterior termine después de borrar o mover una nota.
-      storageQueue = storageQueue.catch(() => {}).then(async () => {
-        await state.wh.storage.set('kanpad_notes', JSON.parse(notes));
-        await state.wh.storage.set('kanpad_folders', JSON.parse(folders));
-      });
-      try { await storageQueue; remoteSaved = true; }
-      catch (e) { console.warn('Error guardando en wh.storage:', e); }
-    }
-    if (version === saveVersion) {
-      savedInKanlane = remoteSaved;
-      if (localSaved || remoteSaved) setSavingStatus(false);
-      else {
-        DOM.statusDot.classList.remove('saving');
-        DOM.statusSaveMsg.textContent = 'Error al guardar';
-        showToast('No se pudo guardar. Exporta una copia antes de cerrar.', 'error');
-      }
-    }
-    return localSaved || remoteSaved;
+    if (saving) { saveAgain = true; return saving; }
+    const generation = projectGeneration, task = ++saveTask;
+    saving = (async () => {
+      try {
+        do {
+          saveAgain = false;
+          setSavingStatus(true);
+          const snapshot = { notes: state.notes, folders: state.folders };
+          const serialized = JSON.stringify(snapshot);
+          await store.save(snapshot);
+          if (generation !== projectGeneration) return false;
+          updateCurrentNoteFromView();
+          if (serialized !== JSON.stringify({ notes: state.notes, folders: state.folders })) saveAgain = true;
+        } while (saveAgain);
+        state.dirty = false; savedInKanlane = !state.isStandalone;
+        setSavingStatus(false); return true;
+      } catch (error) {
+        if (generation !== projectGeneration) return false;
+        state.dirty = true; state.isSaving = false;
+        DOM.statusDot.classList.remove('saving'); DOM.statusSaveMsg.textContent = 'Sin guardar · ' + error.message;
+        showToast('No se pudo guardar: ' + error.message, 'error'); return false;
+      } finally { if (task === saveTask) saving = null; }
+    })();
+    return saving;
   }
 
   function setSavingStatus(saving) {
@@ -280,11 +205,12 @@ plugins: ["kanpad-pro", "timer", "work-report"]
   }
 
   function triggerAutosave() {
+    state.dirty = true;
     setSavingStatus(true);
     clearTimeout(state.autosaveTimer);
     state.autosaveTimer = setTimeout(() => {
       saveNotes(true);
-    }, 800);
+    }, 1500);
   }
 
   /* ==========================================================================
@@ -378,9 +304,9 @@ plugins: ["kanpad-pro", "timer", "work-report"]
     closeModals(); saveNotes(); renderNotesList(); updateStats();
   }
 
-  function deleteFolder(folder) {
+  async function deleteFolder(folder) {
     const count = state.notes.filter(n => n.folderId === folder.id).length;
-    if (!confirm(`¿Eliminar la carpeta "${folder.name}"?${count ? ' Sus ' + count + ' notas pasarán a «Sin carpeta».' : ''}`)) return;
+    if (!await KanPadDialogs.confirm(`¿Eliminar la carpeta "${folder.name}"?${count ? ' Sus ' + count + ' notas pasarán a «Sin carpeta».' : ''}`, 'Eliminar carpeta', 'Eliminar')) return;
     state.notes.forEach(note => { if (note.folderId === folder.id) note.folderId = null; });
     state.folders = state.folders.filter(f => f.id !== folder.id);
     if (state.activeFolder === folder.id) state.activeFolder = 'unfiled';
@@ -415,6 +341,8 @@ plugins: ["kanpad-pro", "timer", "work-report"]
   }
 
   function createNewNote(type = 'doc') {
+    state.activeFilter = 'all'; state.searchQuery = ''; DOM.searchInput.value = '';
+    DOM.filterTabs.forEach(tab => tab.classList.toggle('active', tab.dataset.filter === 'all'));
     const isCode = type === 'code';
     const newNote = {
       id: newId('note'),
@@ -472,12 +400,12 @@ plugins: ["kanpad-pro", "timer", "work-report"]
     updateStats();
   }
 
-  function deleteNote(id, event) {
+  async function deleteNote(id, event) {
     if (event) event.stopPropagation();
 
     const note = state.notes.find(n => n.id === id);
     const confirmMsg = `¿Deseas eliminar "${note ? note.title : 'esta nota'}"?`;
-    if (!confirm(confirmMsg)) return;
+    if (!await KanPadDialogs.confirm(confirmMsg, 'Eliminar nota', 'Eliminar')) return;
 
     state.notes = state.notes.filter(n => n.id !== id);
 
@@ -498,8 +426,8 @@ plugins: ["kanpad-pro", "timer", "work-report"]
     const note = state.notes.find(n => n.id === state.currentNoteId);
     if (!note) return;
 
+    const before = JSON.stringify(note);
     note.title = DOM.noteTitleInput.value.trim() || 'Sin título';
-    note.updatedAt = new Date().toISOString();
 
     if (state.currentMode === 'code') {
       note.rawCode = DOM.codeTextarea.value;
@@ -512,6 +440,7 @@ plugins: ["kanpad-pro", "timer", "work-report"]
       note.content = DOM.docSheet.innerHTML;
       note.type = 'doc';
     }
+    if (JSON.stringify(note) !== before) { note.updatedAt = new Date().toISOString(); state.dirty = true; }
   }
 
   function filteredNotes() {
@@ -593,35 +522,22 @@ plugins: ["kanpad-pro", "timer", "work-report"]
     document.getElementById('gridContainer').hidden = mode !== 'grid';
     DOM.btnNewNote.querySelector('span').textContent = mode === 'grid' ? 'Nueva hoja Grid' : 'Nueva Nota / Doc';
     DOM.btnExport.title = mode === 'grid' ? 'Descargar hoja como CSV' : 'Descargar documento o código';
-    DOM.btnKanlaneTasks.disabled = mode === 'grid';
+    DOM.btnKanlaneTasks.disabled = mode === 'grid' || !has('tasks:read');
 
     DOM.modeBtns.forEach(btn => {
       btn.classList.toggle('active', btn.dataset.mode === mode);
     });
-
-    const note = state.notes.find(n => n.id === state.currentNoteId);
 
     if (mode === 'doc') {
       DOM.docToolbar.style.display = 'flex';
       DOM.docViewport.style.display = 'flex';
       DOM.codeContainer.style.display = 'none';
 
-      // Si venimos de modo código, pasar el código como snippet o texto formateado
-      if (note && note.type === 'code' && DOM.codeTextarea.value) {
-        if (!DOM.docSheet.innerHTML.trim() || DOM.docSheet.innerHTML === '<p><br></p>') {
-          DOM.docSheet.innerHTML = `<h1>${escapeHtml(note.title)}</h1><div class="doc-code-block"><div class="doc-code-header"><span>${note.language || 'code'}</span><button class="doc-code-copy-btn" onclick="KanPad.copySnippet(this)">Copiar</button></div><pre><code class="language-${note.language || 'javascript'}">${escapeHtml(DOM.codeTextarea.value)}</code></pre></div>`;
-        }
-      }
       DOM.statusMode.textContent = 'Modo: Documento (Word/Docs)';
     } else if (mode === 'code') {
       DOM.docToolbar.style.display = 'none';
       DOM.docViewport.style.display = 'none';
       DOM.codeContainer.style.display = 'flex';
-
-      // Si venimos de modo doc, extraer texto limpio si el textarea está vacío
-      if (note && note.type === 'doc' && !DOM.codeTextarea.value) {
-        DOM.codeTextarea.value = DOM.docSheet.innerText || '';
-      }
 
       updateLineNumbers();
       DOM.statusMode.textContent = `Modo: Notepad++ [${DOM.codeLangSelect.value.toUpperCase()}]`;
@@ -635,19 +551,14 @@ plugins: ["kanpad-pro", "timer", "work-report"]
     updateStats();
   }
 
-  // Grid usa notas independientes: cambiar de sección nunca convierte un documento en hoja.
+  // Cada editor abre notas de su tipo; nunca convierte ni reutiliza el contenido de otra.
   function switchMode(mode) {
     if (!state.isHome && mode === state.currentMode) return;
     updateCurrentNoteFromView();
-    if (state.isHome || mode === 'grid' || state.currentMode === 'grid') {
-      const existing = state.notes.find(note => note.type === mode);
-      if (existing) selectNote(existing.id); else createNewNote(mode);
-    } else {
-      setMode(mode);
-      updateCurrentNoteFromView();
-    }
-    triggerAutosave();
-    renderNotesList();
+    const inFolder = note => state.activeFolder === 'all' || (state.activeFolder === 'unfiled' ? !note.folderId : note.folderId === state.activeFolder);
+    const existing = state.notes.find(note => note.type === mode && inFolder(note));
+    if (existing) selectNote(existing.id); else createNewNote(mode);
+    triggerAutosave(); renderNotesList();
   }
 
   /* ==========================================================================
@@ -717,8 +628,11 @@ plugins: ["kanpad-pro", "timer", "work-report"]
     insertDocHTML(html);
   }
 
-  function insertDocCodeBlock() {
-    const lang = prompt('Indica el lenguaje del bloque (javascript, python, html, css, sql, json):', 'javascript') || 'javascript';
+  async function insertDocCodeBlock() {
+    rememberDocSelection();
+    const choice = await KanPadDialogs.prompt('Lenguaje del bloque', 'javascript', 'javascript, python, html, css, sql o json');
+    if (choice === null) return;
+    const lang = ['javascript', 'python', 'html', 'css', 'sql', 'json'].includes(choice.toLowerCase()) ? choice.toLowerCase() : 'plaintext';
     const sample = `// Escribe tu código ${lang} aquí...\nconsole.log("Hola desde KanPad Pro");`;
 
     const html = `
@@ -760,11 +674,22 @@ plugins: ["kanpad-pro", "timer", "work-report"]
     DOM.codeLineNumbers.innerHTML = gutterHTML;
   }
 
+  async function insertLink() {
+    rememberDocSelection();
+    const value = await KanPadDialogs.prompt('URL del enlace', 'https://');
+    if (!value) return;
+    try {
+      const url = new URL(value);
+      if (!['https:', 'http:', 'mailto:'].includes(url.protocol)) throw Error('Protocolo no permitido');
+      execDocCmd('createLink', url.href);
+    } catch { showToast('Introduce un enlace http, https o mailto válido.', 'error'); }
+  }
+
   function copyCurrentCode() {
     const code = DOM.codeTextarea.value;
-    navigator.clipboard.writeText(code).then(() => {
+    KanPadDialogs.copy(code).then(() => {
       showToast('Código copiado al portapapeles', 'info');
-    });
+    }).catch(error => showToast(error.message, 'error'));
   }
 
   /* ==========================================================================
@@ -780,17 +705,14 @@ plugins: ["kanpad-pro", "timer", "work-report"]
       try {
         tasks = await state.wh.tasks.list();
       } catch (e) {
-        console.warn('Error listando tareas de Kanlane:', e);
+        DOM.taskListContainer.textContent = 'No se pudieron cargar las tareas: ' + e.message;
+        return;
       }
     }
 
-    // Si no hay tareas o está en standalone, mostrar ejemplos demostrativos
-    if (!tasks || tasks.length === 0) {
-      tasks = [
-        { id: 'task-1', title: 'Diseñar arquitectura del plugin', status: 'en_proceso', client: 'Kanlane' },
-        { id: 'task-2', title: 'Implementar formateador de código', status: 'completada', client: 'Kanlane' },
-        { id: 'task-3', title: 'Testear integración con tablas y storage', status: 'pendiente', client: 'Kanlane' }
-      ];
+    if (!tasks || !tasks.length) {
+      DOM.taskListContainer.textContent = 'No hay tareas disponibles en este proyecto.';
+      return;
     }
 
     DOM.taskListContainer.innerHTML = '';
@@ -800,7 +722,7 @@ plugins: ["kanpad-pro", "timer", "work-report"]
       card.innerHTML = `
         <div>
           <div style="font-weight:600; font-size:13px; color:var(--ink);">${escapeHtml(task.title || 'Sin título')}</div>
-          <div style="font-size:11px; color:var(--ink-faint);">${escapeHtml(task.client || 'Kanlane')} · ${escapeHtml(task.status || 'abierta')}</div>
+          <div style="font-size:11px; color:var(--ink-faint);">${escapeHtml(task.cliente || 'Sin cliente')} · ${escapeHtml(task.status || 'abierta')}</div>
         </div>
         <button class="app-btn btn-primary" style="height:24px; font-size:11px;">Insertar</button>
       `;
@@ -910,7 +832,7 @@ plugins: ["kanpad-pro", "timer", "work-report"]
 
   function showToast(message, type = 'info') {
     if (state.wh && state.wh.ui && typeof state.wh.ui.toast === 'function') {
-      state.wh.ui.toast(message, { type });
+      state.wh.ui.toast(message, { type: type === 'info' ? 'important' : type }).catch(() => {});
       return;
     }
 
@@ -937,7 +859,7 @@ plugins: ["kanpad-pro", "timer", "work-report"]
   }
 
   function closeModals() {
-    document.querySelectorAll('.modal-overlay').forEach(m => m.classList.remove('active'));
+    document.querySelectorAll('.modal-overlay:not(#actionModal)').forEach(m => m.classList.remove('active'));
     manageAction = null;
   }
 
@@ -1072,7 +994,13 @@ plugins: ["kanpad-pro", "timer", "work-report"]
     // Confirmar inserción de tabla
     DOM.btnConfirmTable.addEventListener('click', confirmInsertTable);
 
-    window.addEventListener('pagehide', () => { saveNotes(false); });
+    document.addEventListener('visibilitychange', () => { if (document.hidden && state.dirty) saveNotes(); });
+    window.addEventListener('pagehide', () => {
+      if (!state.ready) return;
+      updateCurrentNoteFromView();
+      // Dentro de Kanlane el origen opaco no permite respaldo local.
+      if (state.isStandalone) { try { store.flushLocal({ notes: state.notes, folders: state.folders }); } catch {} }
+    });
 
     // Cerrar modales con tecla Escape
     window.addEventListener('keydown', (e) => {
@@ -1087,16 +1015,17 @@ plugins: ["kanpad-pro", "timer", "work-report"]
     insertTableModal,
     insertCallout,
     insertDocCodeBlock,
+    insertLink,
     execDocCmd,
     closeModals,
     copySnippet(btn) {
       const codeBlock = btn.closest('.doc-code-block');
       if (codeBlock) {
         const code = codeBlock.querySelector('code').innerText;
-        navigator.clipboard.writeText(code).then(() => {
+        KanPadDialogs.copy(code).then(() => {
           btn.textContent = '¡Copiado!';
           setTimeout(() => { btn.textContent = 'Copiar'; }, 1500);
-        });
+        }).catch(error => showToast(error.message, 'error'));
       }
     }
   };

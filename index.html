@@ -10,8 +10,11 @@
   <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
-
-  <div class="kanpad-app is-home">
+  <section id="connectionState" class="connection-state" role="status" aria-live="polite">
+    <h1>KanPad Pro</h1><p id="connectionMessage">Conectando con Kanlane…</p>
+    <button id="btnRetryConnection" class="app-btn" hidden>Reintentar conexión</button>
+  </section>
+  <div class="kanpad-app is-home" hidden>
     <!-- Header Principal -->
     <header class="kanpad-header">
       <div class="kanpad-header-left">
@@ -25,6 +28,7 @@
           <span>KanPad Pro</span>
           <span id="envBadge" class="brand-tag">PLUGIN</span>
         </div>
+        <span id="projectName" class="project-name"></span>
 
         <input type="text" id="noteTitleInput" class="note-title-input" value="Documento sin título" placeholder="Título de la nota...">
       </div>
@@ -170,7 +174,7 @@
 
           <!-- Separador horizontal y Enlaces -->
           <button class="tb-btn" title="Línea horizontal divisoria" onclick="KanPad.execDocCmd('insertHorizontalRule')">―</button>
-          <button class="tb-btn" title="Insertar enlace" onclick="const url=prompt('URL del enlace:','https://'); if(url) KanPad.execDocCmd('createLink', url);">🔗</button>
+          <button class="tb-btn" title="Insertar enlace" onclick="KanPad.insertLink()">🔗</button>
         </div>
 
         <!-- Vista Documento (Hoja de trabajo tipo Google Docs) -->
@@ -184,7 +188,7 @@
         <div id="codeContainer" class="code-mode-container">
           <div class="code-mode-toolbar">
             <div class="code-mode-toolbar-left">
-              <span style="font-size:12px; font-weight:600; color:#fff;">Lenguaje:</span>
+              <span style="font-size:12px; font-weight:600; color:var(--ink);">Lenguaje:</span>
               <select id="codeLangSelect" class="code-lang-select">
                 <option value="javascript">JavaScript / TypeScript (.js, .ts)</option>
                 <option value="json">JSON (.json)</option>
@@ -256,9 +260,17 @@
       <div class="statusbar-right">
         <span id="statusWords">0 palabras</span>
         <span>UTF-8</span>
-        <span>KanPad Pro v1.2</span>
+        <span>KanPad Pro v1.3</span>
       </div>
     </footer>
+  </div>
+
+  <div id="actionModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="actionTitle">
+    <form id="actionForm" class="modal-dialog">
+      <div class="modal-header"><h3 id="actionTitle"></h3></div>
+      <div class="modal-body"><p id="actionMessage"></p><label for="actionInput" class="sr-only">Valor</label><input id="actionInput" class="manage-input" maxlength="200" hidden></div>
+      <div class="modal-footer"><button id="actionCancel" class="app-btn" type="button">Cancelar</button><button id="actionSubmit" class="app-btn btn-primary" type="submit">Continuar</button></div>
+    </form>
   </div>
 
   <!-- Modal: Insertar Tabla -->
@@ -318,6 +330,8 @@
   <!-- Scripts -->
   <script src="https://kanlane.com/plugins/sdk/workhub-plugin.js"></script>
   <script src="js/code-highlighter.js"></script>
+  <script src="js/dialogs.js"></script>
+  <script src="js/storage.js"></script>
   <script src="js/grid.js"></script>
   <script src="js/home.js"></script>
   <script src="js/app.js"></script>

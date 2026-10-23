@@ -61,9 +61,9 @@ const oldNotes = [
     await page.locator('#btnNewFolder').click(); await manageSubmit('Proyecto');
     assert.equal(await page.locator('#manageError').innerText(), 'Ya existe una carpeta con ese nombre.');
     await page.keyboard.press('Escape');
-    page.once('dialog', d => d.dismiss()); await page.getByRole('button', { name: 'Eliminar carpeta Proyecto', exact: true }).click();
+    await page.getByRole('button', { name: 'Eliminar carpeta Proyecto', exact: true }).click(); await page.locator('#actionModal.active').waitFor(); await page.locator('#actionCancel').click();
     assert.equal(await page.locator('#homeTitle').innerText(), 'Proyecto');
-    page.once('dialog', d => d.accept()); await page.getByRole('button', { name: 'Eliminar carpeta Proyecto', exact: true }).click();
+    await page.getByRole('button', { name: 'Eliminar carpeta Proyecto', exact: true }).click(); await page.locator('#actionModal.active').waitFor(); await page.locator('#actionSubmit').click();
     assert.equal(await page.locator('#homeTitle').innerText(), 'Sin carpeta');
     assert.equal(await page.locator('.home-note').count(), 5);
     await page.locator('#searchInput').fill('renombrado'); assert.equal(await page.locator('.home-note').count(), 2);
@@ -77,7 +77,7 @@ const oldNotes = [
     await page.screenshot({ path: '/tmp/kanpad-home-mobile.png' });
     await page.setViewportSize({ width: 1440, height: 900 });
     while (await page.locator('.home-note').count()) {
-      page.once('dialog', d => d.accept()); await page.locator('.home-note').first().getByRole('button', { name: /^Eliminar / }).click();
+      await page.locator('.home-note').first().getByRole('button', { name: /^Eliminar / }).click(); await page.locator('#actionModal.active').waitFor(); await page.locator('#actionSubmit').click();
     }
     assert.equal(await page.locator('.home-empty').count(), 1);
     await page.reload(); await page.locator('.home-empty').waitFor();
@@ -87,22 +87,5 @@ const oldNotes = [
     await page.locator('#btnConfirmTable').click(); assert.equal(await page.locator('#docSheet table').count(), 1);
     assert.deepEqual(errors, []);
     console.log('OK: tabla en cursor y persistencia, validación, migración, carpetas, mover/renombrar/duplicar, filtros, borrar última nota, crear tras vaciar, móvil.');
-    // La colección remota vacía debe prevalecer sobre un respaldo local antiguo.
-    const sdk = await browser.newPage();
-    await sdk.route('https://kanlane.com/**', route => route.abort());
-    await sdk.route('http://127.0.0.1:8080/host-test', route => route.fulfill({ contentType: 'text/html', body: '<iframe src="/"></iframe>' }));
-    await sdk.addInitScript(() => {
-      localStorage.setItem('kanpad_notes', JSON.stringify([{ id: 'stale', title: 'Copia antigua', type: 'doc', content: 'No restaurar' }]));
-      window.testStore = { kanpad_notes: [], kanpad_folders: [] };
-      window.WorkhubPlugin = { connect: async () => ({ storage: { get: async key => window.testStore[key], set: async (key, value) => { window.testStore[key] = JSON.parse(JSON.stringify(value)); } }, ui: { toast() {} } }) };
-    });
-    await sdk.goto(url + '/host-test');
-    const frame = sdk.frameLocator('iframe'); await frame.locator('.home-empty').waitFor();
-    await frame.locator('#btnNewFolder').click(); await frame.locator('#manageName').fill('Remota'); await frame.locator('#manageForm button[type="submit"]').click();
-    await frame.locator('[data-create="doc"]').click(); await frame.locator('#btnHome').click();
-    await frame.locator('#statusSaveMsg').filter({ hasText: 'Guardado en Kanlane' }).waitFor();
-    const remote = await sdk.frames()[1].evaluate(() => window.testStore);
-    assert.equal(remote.kanpad_notes.length, 1); assert.equal(remote.kanpad_folders[0].name, 'Remota');
-    console.log('OK: SDK simulado, colección vacía y persistencia de notas y carpetas.');
   } finally { await browser.close(); }
 })().catch(e => { console.error(e); process.exit(1); });

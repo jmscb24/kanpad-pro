@@ -1,0 +1,42 @@
+<!doctype html><html lang="es" data-theme="light"><head><meta charset="utf-8">
+<link rel="stylesheet" href="/kanlane-source/assets/css/tokens.css"><link rel="stylesheet" href="/kanlane-source/assets/css/components/appearance.css">
+<style>body{margin:0;padding:20px;background:radial-gradient(ellipse at top left,color-mix(in srgb,var(--hue-a) 12%,transparent),transparent),var(--bg);color:var(--ink);font:13px var(--font)}header{padding-bottom:14px}iframe{display:block;width:100%;height:760px;border:0}#backgrounds{position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden}</style>
+<script>
+window.toasts=[];window.buttons=[];window.calls=[];window.testProject='project-a';window.denied=false;window.failReads=false;window.failWrites=false;window.maxBytes=800*1024;
+window.Workhub={services:{},models:{CollectionModel:class{},TaskModel:{stageKey:t=>t.status,STATUS:[{key:'todo',label:'Por hacer',done:false},{key:'done',label:'Finalizada',done:true}]}},controllers:{},views:{toast:{error:message=>toasts.push(message),success:message=>toasts.push(message)},extensions:{addButton:(who,frame,params)=>{buttons.push(params);return true}}},utils:{urls:{safeUrl:url=>url}},t:x=>x,i18n:{lang:'es'}};
+</script>
+<script src="/kanlane-source/src/services/plugin-host.js"></script>
+<script src="/kanlane-source/src/models/plugin-model.js"></script>
+<script src="/kanlane-source/src/controllers/plugins-clean.js"></script>
+<script src="/kanlane-source/src/controllers/plugins-controller.js"></script>
+</head><body><header>Kanlane · <span id="projectLabel">Proyecto A</span></header><main id="stage"></main><div id="backgrounds"></div>
+<script>
+const buckets=JSON.parse(localStorage.getItem('kanlane-test-buckets')||'{}');
+const host=Workhub.services.pluginHost,Controller=Workhub.controllers.PluginsController;
+const controller=Object.create(Controller.prototype), frames=[];
+controller.app={
+ projectId:testProject,
+ controllers:{
+  projects:{current:()=>({id:testProject,nombre:testProject==='project-a'?'Proyecto A':'Proyecto B'})},
+  settings:{model:{theme:'light',nav:'side',currentAccent:()=>null},view:{applyAccent:()=>{},applyTheme:theme=>document.documentElement.setAttribute('data-theme',theme),applyNav:()=>{}}}
+ }
+};
+controller.m={tasks:{items:[{id:'t1',title:'Tarea real de prueba',desc:'',cliente:'Cliente Kanlane',status:'todo',dueDate:'',contacto:''}]} };
+controller.frames=()=>frames;controller.open=()=>{window.openPanelCalls=(window.openPanelCalls||0)+1};
+controller.schedule=(name,data)=>{const value=data();frames.forEach(frame=>frame.emit(name,value))};
+controller.bucket=(pluginId)=>{const key=testProject+':'+pluginId;return {maxBytes:window.maxBytes,read:async()=>{if(failReads)throw Error('Lectura fallida');return structuredClone(buckets[key]||{})},write:async values=>{if(failWrites)throw Error('Sin conexión al guardar');buckets[key]=structuredClone(values);localStorage.setItem('kanlane-test-buckets',JSON.stringify(buckets))}}};
+window.seed=(project,pluginId,key,value)=>{const id=project+':'+pluginId;(buckets[id]||(buckets[id]={}))[key]=JSON.stringify(value);localStorage.setItem('kanlane-test-buckets',JSON.stringify(buckets))};
+window.inspect=()=>JSON.parse(JSON.stringify(buckets));
+window.mount=(options={})=>{
+ const appearance=!!options.appearance,mode=options.background?'background':'panel';let installation;
+ const frame=new host.PluginFrame({url:appearance?'/kanlane-source/plugins/apariencia/index.html':'/index.html',container:options.background?document.getElementById('backgrounds'):document.getElementById('stage'),hidden:options.background,mode,
+ onHello:raw=>{const checked=host.validateManifest(raw,appearance);if(checked.error)return checked;installation={id:raw.id,manifest:checked.manifest};const granted=raw.permissions.filter(p=>!denied||p!=='storage');return {manifest:checked.manifest,granted,context:{...controller.context(),mode}}},
+ api:(method,params,source)=>{calls.push({method,params,plugin:installation.id,project:testProject});return controller.api(installation,method,params,source)}});
+ frames.push(frame);if(!appearance&&!options.background)window.mainFrame=frame;return frame;
+};
+window.unmount=frame=>{const index=frames.indexOf(frame);if(index!==-1)frames.splice(index,1);frame.destroy()};
+window.reopen=()=>{if(window.mainFrame)unmount(mainFrame);mount()};
+window.project=id=>{frames.slice().forEach(unmount);testProject=id;controller.app.projectId=id;document.getElementById('projectLabel').textContent=id;mount()};
+window.publish=(key,value)=>{seed(testProject,'com.yalerooo.kanpad-pro',key,value);frames.forEach(frame=>frame.emit('storage',{key,scope:'project'}))};
+window.setLook=async look=>{await Workhub.models.PluginModel.storageSet(controller.bucket('workhub.apariencia'),'look',look);frames.forEach(frame=>{if(frame.manifest?.id==='workhub.apariencia')frame.emit('storage',{key:'look',scope:'project'})})};
+</script></body></html>

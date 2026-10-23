@@ -1,129 +1,91 @@
-# 📝 KanPad Pro — Plugin para Kanlane
+# KanPad Pro para Kanlane
 
-> **El bloc de notas avanzado para Kanlane**: combina un procesador de documentos enriquecidos (tipo **Google Docs / Word**) con tablas y formato visual, más un potente editor de código (tipo **Notepad++**) con detección de lenguaje, números de línea y formateo inteligente (*prettify*).
+Notas del proyecto organizadas en carpetas, con tres editores: **Docs**, **Código** y **Grid**.
 
----
+## Uso
 
-## ✨ Características Principales
+Al abrir el plugin aparece **Inicio**. Desde ahí puedes crear carpetas y notas, buscar, filtrar, ordenar, renombrar, duplicar, mover y eliminar. Cada nota mantiene su tipo de editor. Eliminar una carpeta conserva las notas en **Sin carpeta**.
 
-### Inicio y gestión de notas (v1.2)
-- La aplicación abre en **Inicio**, con tarjetas de documentos, código y hojas Grid, buscador, filtros por tipo y orden por nombre, tipo o fecha.
-- Crea, abre, renombra, mueve, duplica y elimina notas. Puedes borrar también la última nota y crear una nueva desde una biblioteca vacía.
-- Crea y renombra carpetas. Al eliminar una carpeta, sus notas se conservan en **Sin carpeta**. Las carpetas son de un solo nivel.
-- Las notas nuevas se crean en la carpeta que tengas seleccionada. El botón **Inicio** guarda el editor y vuelve al gestor.
-- Las notas existentes se conservan; aquellas que no tenían carpeta aparecen en **Sin carpeta**. Notas y carpetas usan `kanpad_notes` y `kanpad_folders` en el almacenamiento de Kanlane y el respaldo local.
-- El modo independiente utiliza directamente el almacenamiento del navegador; la conexión SDK se intenta cuando se abre integrado en un iframe.
-- **Insertar Tabla** en Docs conserva el cursor al abrir el modal, valida las dimensiones y guarda la tabla insertada. Si aún no colocaste el cursor, se añade al final del documento.
+- **Docs:** contenido enriquecido, tablas con inserción en el cursor, listas, enlaces, bloques de código y notas destacadas.
+- **Código:** editor monoespaciado, números de línea, selector de lenguaje, formateo y copia.
+- **Grid:** celdas editables, fórmulas y referencias, selección de rangos, formato, deshacer/rehacer y CSV/TSV. Empieza con 50 filas y 26 columnas, ampliables hasta 1.000 × 100. Funciones: SUM/SUMA, AVERAGE/PROMEDIO, MIN, MAX y COUNT/CONTAR; operaciones `+ - * / ^` y paréntesis.
 
+El botón **Inicio** guarda el editor y vuelve a las carpetas. **Guardar** permite comprobar el resultado del guardado; el autosave se activa tras una pausa de escritura. El estado inferior distingue «Guardando», «Guardado en Kanlane», «Guardado localmente» y «Sin guardar». Los errores no se presentan como guardados correctos.
 
-### 1. 📄 Modo Documento (Docs / Word Pro)
-- **Formato Enriquecido**: Títulos (H1, H2, H3), Negrita, Cursiva, Subrayado, Tachado, Citas destacadas y Listas.
-- **📊 Tablas Interactivas**: Asistente visual para insertar tablas de cualquier tamaño (filas × columnas) con encabezados y celdas estilizadas.
-- **💡 Cajas de Aviso / Callouts**: Inserta notas informativas, avisos de advertencia (`warning`) o confirmaciones (`success`).
-- **💻 Bloques de Código Integrados**: Incrusta snippets de código con selector de lenguaje y botón de copia con un clic.
-- **Hoja de Trabajo Flotante**: Diseño visual de hoja de papel centrada y limpia adaptada a pantallas grandes y móviles.
+## Integración con Kanlane
 
-### 2. ⚡ Modo Notepad++ (Editor de Código)
-- **Gutter con Números de Línea**: Numeración en tiempo real sincronizada con el scroll y escritura.
-- **Formateo Inteligente (Prettify)**: Botón **"⚡ Formatear Código"** que detecta automáticamente o según el selector la sintaxis y limpia la indentación (JSON, JavaScript, HTML, CSS, SQL, Python).
-- **Soporte para Tab**: Presionar `Tab` añade 2 espacios sin perder el foco en el editor.
-- **Copiar Todo**: Copia todo el contenido del código directamente al portapapeles.
-- **Barra de Estado**: Contador de líneas, palabras, caracteres y estado de guardado.
+Implementación revisada contra [Kanlane](https://github.com/yalerooo/Kanlane/tree/3f76580a0504d0a223176c864f16f7e667df5cc4), su [guía](https://github.com/yalerooo/Kanlane/blob/3f76580a0504d0a223176c864f16f7e667df5cc4/docs/PLUGINS.md), SDK, anfitrión y plugin [Apariencia](https://github.com/yalerooo/Kanlane/tree/3f76580a0504d0a223176c864f16f7e667df5cc4/plugins/apariencia).
 
-### 3. ▦ Grid (Hoja de cálculo)
-- **Tercera sección independiente** junto a Documento y Notepad++, con filtro Grid y varias hojas guardadas como notas.
-- **Celdas editables** con cabeceras A–Z (ampliables hasta CV) y filas numeradas. Cada hoja empieza con 50 filas y 26 columnas, ampliables hasta 1.000 × 100.
-- **Fórmulas** con referencias (`=A1*B1`), rangos (`=SUMA(A1:A10)`), paréntesis, `+`, `-`, `*`, `/`, `^`, y funciones `SUM`/`SUMA`, `AVERAGE`/`PROMEDIO`, `MIN`, `MAX`, `COUNT`/`CONTAR`. Recalcula al editar y muestra errores de referencia, división por cero o referencias circulares.
-- **Barra de fórmulas y dirección de celda**, negrita, número con dos decimales, euros y porcentajes; resumen de selección con suma.
-- **Teclado y portapapeles**: flechas, Tab y Enter para navegar; doble clic o F2 para editar; Escape para cancelar; Mayús + clic o Mayús + flechas para seleccionar rangos; Supr para vaciar; copiar, cortar y pegar tablas desde Excel/Google Sheets.
-- **Deshacer y rehacer** (botones, Ctrl/Cmd+Z y Ctrl/Cmd+Y), incluyendo pegado, formato e importación. El historial se conserva mientras la hoja está abierta.
-- **Importación CSV/TSV** con comillas, saltos de línea y detección de separadores (coma, punto y coma o tabulador). Importar reemplaza la hoja previa tras confirmarlo. Límite de archivo: 5 MB.
-- **Exportación CSV** desde el botón Exportar: descarga resultados calculados en UTF-8. Las fórmulas y el formato se conservan en el guardado de KanPad; CSV no conserva formato ni fórmulas. No importa archivos `.xlsx`.
-- **Autosave** mediante el almacenamiento existente de Kanlane y respaldo local. El cálculo se realiza en el navegador sin ejecutar fórmulas como JavaScript.
+- Mantiene el identificador existente **`com.yalerooo.kanpad-pro`** para conservar la instalación y sus datos.
+- El SDK y su CSS se cargan desde `https://kanlane.com/plugins/sdk/`.
+- En el **panel**, conecta primero, verifica el permiso `storage`, carga las notas del proyecto y abre Inicio. Ante un fallo de conexión o lectura muestra el error y ofrece reintentar; no abre una biblioteca local de sustitución.
+- En **segundo plano**, registra únicamente una acción «Abrir KanPad Pro» en la paleta de comandos. No carga ni guarda una biblioteca ni inicializa editores.
+- Usa `wh.storage` del **proyecto**; no usa el espacio global del usuario. Las notas de un proyecto no se mezclan con otro. Los eventos de proyecto y de almacenamiento permiten recargar los datos; si hay cambios locales pendientes, un cambio de otra ventana se avisa sin reemplazar el editor.
+- Dentro del sandbox opaco no accede a `localStorage` y no utiliza los cuadros nativos `alert`, `confirm` o `prompt`. Borrados, importaciones, enlaces y selección de lenguaje usan diálogos propios.
+- Los permisos solicitados son `storage`, `tasks:read` y `ui:extend`. El icono es `book`, reconocido por Kanlane. No requiere `appearance` ni escribir tareas.
+- El selector de tareas usa las tareas reales del proyecto y el campo `cliente`; una lista vacía no se rellena con tareas inventadas.
 
-Ejemplo: escribe `10` en A1, `20` en A2 y `=SUMA(A1:A2)` en B1 para obtener `30`. Las fórmulas admiten punto decimal y separadores de argumentos `,` o `;`; los valores numéricos de las celdas admiten coma decimal.
+### Persistencia y migración
 
-### 4. 🎯 Integración Nativa con Kanlane
-- **SDK Oficial (`workhub-plugin.js`)**: Comunicación segura mediante `iframe` aislado de Kanlane.
-- **Autosave y Almacenamiento Persistente**: Guarda automáticamente todas las notas en el almacenamiento de Kanlane (`wh.storage`).
-- **📌 Vinculación de Tareas**: Puedes abrir un modal con tus tareas actuales de Kanlane (`wh.tasks.list()`) e insertarlas como tarjetas vinculadas en tus notas.
-- **Adaptación al Tema**: Sigue automáticamente los colores y temas claro/oscuro de Kanlane gracias a sus variables CSS oficiales.
-- **🛡️ Modo Independiente (Local / Standalone)**: Si abres el archivo directamente en tu navegador fuera de Kanlane, funciona de inmediato usando `localStorage` para que puedas probarlo y editar sin restricciones.
+Las versiones anteriores guardaban `kanpad_notes` y `kanpad_folders`. Se leen en el mismo proyecto y se conservan; al modificar datos se publica la biblioteca v2 en **`kanpad_library_v2`**. Las instalaciones vacías permanecen vacías y no generan notas de ejemplo.
 
----
+Una biblioteca pequeña se guarda en una sola escritura. Una biblioteca grande se divide en claves `kanpad_part_*`, de menos de 100 KB por clave, y se publica su índice solo después de guardar todas sus partes. Si falla la publicación, la biblioteca previamente confirmada sigue disponible. Los guardados se serializan y las escrituras SDK se espacian para respetar el límite de 60 por minuto; no se escribe al abrir una biblioteca que no ha cambiado.
 
-## 📁 Estructura del Proyecto
+Se mantienen los límites totales de Kanlane: 800 KB por plugin y proyecto, o 600 KB en proyectos con cifrado total, incluyendo versiones conservadas durante un guardado y datos antiguos de migración. Un error de cuota se muestra en el estado; el contenido del editor sigue disponible para exportar o reintentar. Los datos del proyecto nunca se trasladan automáticamente al almacenamiento del usuario ni al modo local.
+
+### Apariencia
+
+El SDK aplica y actualiza las variables que exporta Kanlane: colores, acento, superficies, bordes, fuente y radios. KanPad las utiliza también en Docs, Código, Grid y diálogos. El fondo exterior es transparente para que se vea el fondo de Kanlane y los cambios de Apariencia; el editor de código sigue el tema elegido.
+
+El contrato actual del SDK no transmite los atributos de densidad, tamaño de texto o movimiento de Apariencia. KanPad sigue las variables disponibles y la preferencia de movimiento reducido del navegador; no intenta leer el DOM de la página anfitriona.
+
+## Publicación
+
+Publica los archivos en un alojamiento HTTPS, por ejemplo GitHub Pages. Instala la **URL de `index.html`**, no la página del repositorio, desde **Kanlane → Plugins → Añadir**. Para este repositorio, si GitHub Pages está activado en la raíz de `main`, la URL es:
 
 ```
-kanpad-pro/
-├── index.html              # Interfaz principal (UI, barra de herramientas y modales)
-├── manifest.json           # Configuración y permisos del plugin para Kanlane
-├── css/
-│   └── styles.css          # Estilos modernos con variables de diseño de Kanlane
-├── js/
-│   ├── app.js              # Lógica principal, estado de notas y SDK Kanlane
-│   ├── code-highlighter.js # Formateador y detector de sintaxis multilinguaje
-│   ├── grid.js             # Editor Grid, fórmulas, portapapeles y CSV
-│   └── home.js             # Inicio, tarjetas de notas y navegación de carpetas
-└── README.md               # Esta documentación
+https://jmscb24.github.io/kanpad-pro/index.html
 ```
 
----
+Conserva la instalación actual si ya utiliza esa dirección; recarga Kanlane tras publicar. No desinstales para actualizar: Kanlane borra los datos del proyecto al quitar un plugin.
 
-## 🚀 Cómo Probarlo en Local
+## Modo independiente
 
-Puedes probar el plugin en tu equipo de varias formas:
-
-### Opción A: Abrir directamente en el navegador
-Simplemente haz doble clic en `index.html` o ábrelo con Chrome/Edge. El plugin detectará automáticamente que está en modo local y usará `localStorage` para guardar tus notas.
-
-### Opción B: Usar un servidor local ligero
-Si tienes Node.js o Python instalado:
-
-```powershell
-# Con Python:
-python -m http.server 8080
-
-# O con npx:
-npx serve .
-```
-Luego visita `http://localhost:8080` en tu navegador.
-
----
-
-## 🌐 Cómo Instalarlo en Kanlane
-
-Los plugins de Kanlane se ejecutan mediante URLs seguras con HTTPS (por ejemplo alojados en **GitHub Pages**):
-
-1. **Sube este proyecto a tu repositorio de GitHub**:
-   - Crea un repositorio (ej: `kanpad-pro`).
-   - Sube los archivos de esta carpeta.
-   - En GitHub: Ve a **Settings** → **Pages** → y activa GitHub Pages en la rama `main`.
-   - Obtendrás una URL como: `https://tu-usuario.github.io/kanpad-pro/`
-
-2. **Añádelo a Kanlane**:
-   - En tu aplicación de Kanlane, ve a la sección **Plugins**.
-   - Pega la URL de tu plugin (ej: `https://tu-usuario.github.io/kanpad-pro/index.html`).
-   - Haz clic en **Añadir**, revisa los permisos solicitados (`storage`, `tasks:read`, `tasks:write`, `ui:extend`) y pulsa **Instalar**.
-   - ¡Listo! Tendrás tu bloc de notas pro disponible como panel integrado en Kanlane.
-
----
-
-## 🔒 Permisos Solicitados
-- `storage`: Permite guardar tus documentos y código de forma segura en Kanlane.
-- `tasks:read`: Permite listar tus tareas para vincularlas en las notas.
-- `tasks:write`: Permite crear o actualizar tareas desde tus notas.
-- `ui:extend`: Permite abrir vistas y formularios dentro de Kanlane.
-
+Puedes abrir `index.html` directamente o servirlo con `python3 -m http.server 8080`. Se abre en Inicio y guarda en el navegador. Este almacenamiento es independiente del de Kanlane; no se usa como respaldo de los proyectos.
 
 ## Verificación
 
-Pruebas del motor de cálculo y CSV (Node.js, sin instalar dependencias):
+Pruebas sin dependencias externas (Node.js):
 
 ```bash
-node --test tests/grid.test.js
+node --test tests/grid.test.js tests/storage.test.js
 ```
 
-Prueba funcional del navegador: con Playwright y Chromium instalados, sirve el proyecto con `python3 -m http.server 8080` y ejecuta `node tests/grid.browser.cjs` y `node tests/home.browser.cjs`. Puedes indicar otra URL mediante `GRID_TEST_URL`. Comprueba edición, recálculo, formato, rangos, pegado, deshacer/rehacer, guardado tras recarga, aislamiento entre notas, CSV y tamaño móvil.
+Pruebas de navegador con Playwright y Chromium, con el proyecto servido en el puerto 8080:
 
-La prueba de Inicio verifica la migración de notas previas, la inserción de tablas en el cursor y su recuperación al recargar, validación de dimensiones, gestión de carpetas, mover/renombrar/duplicar/borrar notas, cancelación de borrados, filtros y biblioteca vacía. Incluye una integración SDK simulada para verificar el guardado y que una colección remota vacía no restaure un respaldo antiguo.
+```bash
+node tests/home.browser.cjs
+node tests/grid.browser.cjs
+```
+
+Integración con el código de Kanlane:
+
+```bash
+git clone https://github.com/yalerooo/Kanlane.git ../kanlane-reference
+node tests/kanlane.browser.cjs
+```
+
+La última prueba carga el SDK, `PluginFrame`, `PluginsController`, `PluginModel`, los estilos y el plugin Apariencia del checkout indicado. Usa el sandbox real, sin `allow-same-origin` ni `allow-modals`. Sustituye solo el backend de datos por un almacenamiento de prueba; no necesita una cuenta Firebase. Verifica conexión y permisos, Inicio, carpetas, los tres editores, tablas, CSV, guardado y reapertura, Apariencia, bibliotecas de más de 100 KB, separación por proyecto, segundo plano y sondeo de instalación. La sincronización con una cuenta real de Kanlane requiere una prueba posterior en esa cuenta.
+
+Variables opcionales: `GRID_TEST_URL`, `GRID_CHROMIUM_PATH` y `KANLANE_SOURCE`.
+
+## Archivos
+
+- `index.html`, `css/styles.css`: interfaz y estilos.
+- `js/app.js`: panel, SDK, editores y ciclo de vida.
+- `js/home.js`: Inicio y carpetas.
+- `js/grid.js`: hoja de cálculo, fórmulas y CSV.
+- `js/storage.js`: almacenamiento local o por proyecto, migración y fragmentos.
+- `js/dialogs.js`: diálogos compatibles con el sandbox y copia.
+- `js/code-highlighter.js`: formateo de código.
+- `manifest.json`: descripción del plugin; coincide con el manifiesto enviado por el SDK.
