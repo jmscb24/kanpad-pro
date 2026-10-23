@@ -6,6 +6,16 @@
 
 ## ✨ Características Principales
 
+### Inicio y gestión de notas (v1.2)
+- La aplicación abre en **Inicio**, con tarjetas de documentos, código y hojas Grid, buscador, filtros por tipo y orden por nombre, tipo o fecha.
+- Crea, abre, renombra, mueve, duplica y elimina notas. Puedes borrar también la última nota y crear una nueva desde una biblioteca vacía.
+- Crea y renombra carpetas. Al eliminar una carpeta, sus notas se conservan en **Sin carpeta**. Las carpetas son de un solo nivel.
+- Las notas nuevas se crean en la carpeta que tengas seleccionada. El botón **Inicio** guarda el editor y vuelve al gestor.
+- Las notas existentes se conservan; aquellas que no tenían carpeta aparecen en **Sin carpeta**. Notas y carpetas usan `kanpad_notes` y `kanpad_folders` en el almacenamiento de Kanlane y el respaldo local.
+- El modo independiente utiliza directamente el almacenamiento del navegador; la conexión SDK se intenta cuando se abre integrado en un iframe.
+- **Insertar Tabla** en Docs conserva el cursor al abrir el modal, valida las dimensiones y guarda la tabla insertada. Si aún no colocaste el cursor, se añade al final del documento.
+
+
 ### 1. 📄 Modo Documento (Docs / Word Pro)
 - **Formato Enriquecido**: Títulos (H1, H2, H3), Negrita, Cursiva, Subrayado, Tachado, Citas destacadas y Listas.
 - **📊 Tablas Interactivas**: Asistente visual para insertar tablas de cualquier tamaño (filas × columnas) con encabezados y celdas estilizadas.
@@ -53,7 +63,8 @@ kanpad-pro/
 ├── js/
 │   ├── app.js              # Lógica principal, estado de notas y SDK Kanlane
 │   ├── code-highlighter.js # Formateador y detector de sintaxis multilinguaje
-│   └── grid.js             # Editor Grid, fórmulas, portapapeles y CSV
+│   ├── grid.js             # Editor Grid, fórmulas, portapapeles y CSV
+│   └── home.js             # Inicio, tarjetas de notas y navegación de carpetas
 └── README.md               # Esta documentación
 ```
 
@@ -113,4 +124,6 @@ Pruebas del motor de cálculo y CSV (Node.js, sin instalar dependencias):
 node --test tests/grid.test.js
 ```
 
-Prueba funcional del navegador: con Playwright y Chromium instalados, sirve el proyecto con `python3 -m http.server 8080` y ejecuta `node tests/grid.browser.cjs`. Puedes indicar otra URL mediante `GRID_TEST_URL`. Comprueba edición, recálculo, formato, rangos, pegado, deshacer/rehacer, guardado tras recarga, aislamiento entre notas, CSV y tamaño móvil.
+Prueba funcional del navegador: con Playwright y Chromium instalados, sirve el proyecto con `python3 -m http.server 8080` y ejecuta `node tests/grid.browser.cjs` y `node tests/home.browser.cjs`. Puedes indicar otra URL mediante `GRID_TEST_URL`. Comprueba edición, recálculo, formato, rangos, pegado, deshacer/rehacer, guardado tras recarga, aislamiento entre notas, CSV y tamaño móvil.
+
+La prueba de Inicio verifica la migración de notas previas, la inserción de tablas en el cursor y su recuperación al recargar, validación de dimensiones, gestión de carpetas, mover/renombrar/duplicar/borrar notas, cancelación de borrados, filtros y biblioteca vacía. Incluye una integración SDK simulada para verificar el guardado y que una colección remota vacía no restaure un respaldo antiguo.

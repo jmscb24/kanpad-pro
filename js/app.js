@@ -11,6 +11,10 @@
   const state = {
     wh: null,                // Instancia de Kanlane SDK si está conectado
     isStandalone: false,     // Modo de desarrollo/local
+    isHome: true,
+    folders: [],
+    activeFolder: 'all',
+    homeSort: 'updated',
     notes: [],               // Lista de notas y documentos
     currentNoteId: null,     // ID de la nota activa
     currentMode: 'doc',      // 'doc' | 'code' | 'grid'
@@ -157,6 +161,11 @@ plugins: ["kanpad-pro", "timer", "work-report"]
      Inicialización e Integración con Kanlane SDK
      ========================================================================== */
   let grid;
+  let savedDocRange = null;
+  let manageAction = null;
+  let storageQueue = Promise.resolve();
+  let saveVersion = 0;
+  let savedInKanlane = false;
   async function init() {
     grid = new KanPadGrid.Editor(() => {
       updateCurrentNoteFromView();
@@ -168,11 +177,11 @@ plugins: ["kanpad-pro", "timer", "work-report"]
     updateLineNumbers();
 
     try {
-      if (window.WorkhubPlugin && typeof window.WorkhubPlugin.connect === 'function') {
+      if (window.parent !== window && window.WorkhubPlugin && typeof window.WorkhubPlugin.connect === 'function') {
         state.wh = await window.WorkhubPlugin.connect({
           id: 'com.yalerooo.kanpad-pro',
           name: 'KanPad Pro',
-          version: '1.1.0',
+          version: '1.2.0',
           icon: 'file-text',
           permissions: ['storage', 'tasks:read', 'tasks:write', 'ui:extend']
         });
@@ -193,69 +202,68 @@ plugins: ["kanpad-pro", "timer", "work-report"]
     await loadNotes();
     renderNotesList();
 
-    if (state.notes.length > 0) {
-      selectNote(state.notes[0].id);
-    } else {
-      createNewNote('doc');
-    }
+    showHome();
   }
 
   /* ==========================================================================
      Persistencia: Kanlane wh.storage con fallback a localStorage
      ========================================================================== */
-  async function loadNotes() {
-    try {
-      if (state.wh && state.wh.storage) {
-        const stored = await state.wh.storage.get('kanpad_notes');
-        if (stored && Array.isArray(stored) && stored.length > 0) {
-          state.notes = stored;
-          return;
-        }
-      }
-    } catch (e) {
-      console.warn('Error leyendo desde wh.storage:', e);
-    }
-
-    // Fallback a localStorage
-    const local = localStorage.getItem('kanpad_notes');
-    if (local) {
+  async function readStoredArray(key) {
+    if (state.wh && state.wh.storage) {
       try {
-        state.notes = JSON.parse(local);
-        return;
-      } catch (e) {}
+        const stored = await state.wh.storage.get(key);
+        if (Array.isArray(stored)) return stored;
+      } catch (e) { console.warn('Error leyendo desde wh.storage:', e); }
     }
+    try {
+      const stored = JSON.parse(localStorage.getItem(key));
+      if (Array.isArray(stored)) return stored;
+    } catch (e) { console.warn('Error leyendo almacenamiento local:', e); }
+    return null;
+  }
 
-    // Si no hay datos, cargar notas por defecto
-    state.notes = JSON.parse(JSON.stringify(defaultInitialNotes));
-    await saveNotes();
+  async function loadNotes() {
+    const notes = await readStoredArray('kanpad_notes');
+    state.folders = (await readStoredArray('kanpad_folders') || []).filter(f => f && typeof f.id === 'string' && typeof f.name === 'string');
+    // Un array vacío es válido: borrar la última nota no debe restaurar las demos.
+    state.notes = notes === null ? JSON.parse(JSON.stringify(defaultInitialNotes)) : notes;
+    state.notes.forEach(note => {
+      if (!state.folders.some(f => f.id === note.folderId)) note.folderId = null;
+    });
+    if (notes === null) await saveNotes(false);
   }
 
   async function saveNotes(showStatus = true) {
-    if (showStatus) {
-      setSavingStatus(true);
-    }
-
-    // Actualizar nota activa antes de guardar
+    if (showStatus) setSavingStatus(true);
     updateCurrentNoteFromView();
-
+    const version = ++saveVersion;
+    const notes = JSON.stringify(state.notes), folders = JSON.stringify(state.folders);
+    let localSaved = false, remoteSaved = false;
+    // El respaldo local es inmediato, incluso al cerrar una ventana con SDK conectado.
     try {
-      if (state.wh && state.wh.storage) {
-        await state.wh.storage.set('kanpad_notes', state.notes);
+      localStorage.setItem('kanpad_notes', notes);
+      localStorage.setItem('kanpad_folders', folders);
+      localSaved = true;
+    } catch (e) { console.warn('Error guardando localmente:', e); }
+    if (state.wh && state.wh.storage) {
+      // Evitar que un guardado anterior termine después de borrar o mover una nota.
+      storageQueue = storageQueue.catch(() => {}).then(async () => {
+        await state.wh.storage.set('kanpad_notes', JSON.parse(notes));
+        await state.wh.storage.set('kanpad_folders', JSON.parse(folders));
+      });
+      try { await storageQueue; remoteSaved = true; }
+      catch (e) { console.warn('Error guardando en wh.storage:', e); }
+    }
+    if (version === saveVersion) {
+      savedInKanlane = remoteSaved;
+      if (localSaved || remoteSaved) setSavingStatus(false);
+      else {
+        DOM.statusDot.classList.remove('saving');
+        DOM.statusSaveMsg.textContent = 'Error al guardar';
+        showToast('No se pudo guardar. Exporta una copia antes de cerrar.', 'error');
       }
-    } catch (e) {
-      console.warn('Error guardando en wh.storage:', e);
     }
-
-    // Siempre respaldar también en localStorage
-    try {
-      localStorage.setItem('kanpad_notes', JSON.stringify(state.notes));
-    } catch (e) {}
-
-    if (showStatus) {
-      setTimeout(() => {
-        setSavingStatus(false);
-      }, 300);
-    }
+    return localSaved || remoteSaved;
   }
 
   function setSavingStatus(saving) {
@@ -266,7 +274,7 @@ plugins: ["kanpad-pro", "timer", "work-report"]
         DOM.statusSaveMsg.textContent = 'Guardando...';
       } else {
         DOM.statusDot.classList.remove('saving');
-        DOM.statusSaveMsg.textContent = state.wh ? 'Guardado en Kanlane' : 'Guardado localmente';
+        DOM.statusSaveMsg.textContent = savedInKanlane ? 'Guardado en Kanlane' : 'Guardado localmente';
       }
     }
   }
@@ -282,10 +290,135 @@ plugins: ["kanpad-pro", "timer", "work-report"]
   /* ==========================================================================
      Gestión de Notas
      ========================================================================== */
+  function newId(prefix) {
+    return prefix + '_' + (window.crypto?.randomUUID ? window.crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2));
+  }
+
+  function showHome() {
+    updateCurrentNoteFromView();
+    clearTimeout(state.autosaveTimer);
+    state.isHome = true;
+    state.currentNoteId = null;
+    savedDocRange = null;
+    document.querySelector('.kanpad-app').classList.add('is-home');
+    DOM.btnNewNote.querySelector('span').textContent = 'Nueva nota';
+    renderNotesList();
+    updateStats();
+    saveNotes();
+  }
+
+  function renderHome() {
+    KanPadHome.render({
+      notes: state.notes, visibleNotes: filteredNotes(), folders: state.folders,
+      activeFolder: state.activeFolder, sort: state.homeSort,
+      actions: {
+        open: selectNote,
+        folder(id) {
+          state.activeFolder = id; renderNotesList();
+          if (window.matchMedia('(max-width: 700px)').matches) { DOM.sidebar.classList.add('is-collapsed'); DOM.btnToggleSidebar.setAttribute('aria-expanded', 'false'); }
+        },
+        createFolder() { manage('createFolder'); },
+        renameFolder(folder) { manage('renameFolder', folder); },
+        deleteFolder,
+        rename(note) { manage('renameNote', note); },
+        move(note) { manage('moveNote', note); },
+        duplicate(note) {
+          const copy = JSON.parse(JSON.stringify(note));
+          copy.id = newId('note'); copy.title += ' (copia)'; copy.updatedAt = new Date().toISOString();
+          state.notes.unshift(copy); saveNotes(); renderNotesList(); updateStats();
+        },
+        delete: deleteNote
+      }
+    });
+  }
+
+  function manage(action, item = null) {
+    manageAction = { action, id: item?.id };
+    const input = document.getElementById('manageName'), select = document.getElementById('manageFolder');
+    const moving = action === 'moveNote';
+    const titles = { createFolder: 'Nueva carpeta', renameFolder: 'Renombrar carpeta', renameNote: 'Renombrar nota', moveNote: 'Mover nota' };
+    document.getElementById('manageTitle').textContent = titles[action];
+    document.getElementById('manageLabel').textContent = moving ? 'Carpeta de destino' : 'Nombre';
+    document.getElementById('manageLabel').htmlFor = moving ? 'manageFolder' : 'manageName';
+    document.getElementById('manageError').textContent = '';
+    input.hidden = moving; input.disabled = moving;
+    input.value = item?.name || item?.title || '';
+    select.hidden = !moving; select.disabled = !moving; select.replaceChildren();
+    if (moving) {
+      const option = new Option('Sin carpeta', ''); select.append(option);
+      state.folders.forEach(folder => select.append(new Option(folder.name, folder.id)));
+      select.value = item.folderId || '';
+    }
+    document.getElementById('manageModal').classList.add('active');
+    if (moving) select.focus(); else { input.focus(); input.select(); }
+  }
+
+  function confirmManage(event) {
+    event.preventDefault();
+    if (!manageAction) return;
+    const { action, id } = manageAction;
+    const name = document.getElementById('manageName').value.trim();
+    const folderAction = action === 'createFolder' || action === 'renameFolder';
+    if (action !== 'moveNote' && !name) { document.getElementById('manageError').textContent = 'Escribe un nombre.'; return; }
+    if (folderAction && state.folders.some(f => f.id !== id && f.name.toLocaleLowerCase('es') === name.toLocaleLowerCase('es'))) {
+      document.getElementById('manageError').textContent = 'Ya existe una carpeta con ese nombre.'; return;
+    }
+    if (action === 'createFolder') {
+      const folder = { id: newId('folder'), name }; state.folders.push(folder); state.activeFolder = folder.id;
+    } else if (action === 'renameFolder') {
+      const folder = state.folders.find(f => f.id === id); if (folder) folder.name = name;
+    } else {
+      const note = state.notes.find(n => n.id === id);
+      if (note) {
+        if (action === 'moveNote') note.folderId = document.getElementById('manageFolder').value || null;
+        else note.title = name;
+        note.updatedAt = new Date().toISOString();
+      }
+    }
+    closeModals(); saveNotes(); renderNotesList(); updateStats();
+  }
+
+  function deleteFolder(folder) {
+    const count = state.notes.filter(n => n.folderId === folder.id).length;
+    if (!confirm(`¿Eliminar la carpeta "${folder.name}"?${count ? ' Sus ' + count + ' notas pasarán a «Sin carpeta».' : ''}`)) return;
+    state.notes.forEach(note => { if (note.folderId === folder.id) note.folderId = null; });
+    state.folders = state.folders.filter(f => f.id !== folder.id);
+    if (state.activeFolder === folder.id) state.activeFolder = 'unfiled';
+    saveNotes(); renderNotesList(); updateStats();
+  }
+
+  function rememberDocSelection() {
+    if (state.isHome || state.currentMode !== 'doc') return;
+    const selection = window.getSelection();
+    if (selection && selection.rangeCount && DOM.docSheet.contains(selection.anchorNode) && DOM.docSheet.contains(selection.focusNode)) savedDocRange = selection.getRangeAt(0).cloneRange();
+  }
+
+  function restoreDocSelection() {
+    const storedRange = savedDocRange?.cloneRange();
+    DOM.docSheet.focus();
+    const selection = window.getSelection();
+    const range = storedRange && DOM.docSheet.contains(storedRange.commonAncestorContainer) ? storedRange.cloneRange() : document.createRange();
+    if (!storedRange || !DOM.docSheet.contains(range.commonAncestorContainer)) { range.selectNodeContents(DOM.docSheet); range.collapse(false); }
+    selection.removeAllRanges(); selection.addRange(range);
+  }
+
+  function insertDocHTML(html) {
+    restoreDocSelection();
+    if (!document.execCommand('insertHTML', false, html)) {
+      const range = window.getSelection().getRangeAt(0);
+      range.deleteContents();
+      const fragment = range.createContextualFragment(html), last = fragment.lastChild;
+      range.insertNode(fragment);
+      if (last) { range.setStartAfter(last); range.collapse(true); window.getSelection().removeAllRanges(); window.getSelection().addRange(range); }
+    }
+    rememberDocSelection(); updateCurrentNoteFromView(); triggerAutosave(); updateStats(); renderNotesList();
+  }
+
   function createNewNote(type = 'doc') {
     const isCode = type === 'code';
     const newNote = {
-      id: 'note_' + Date.now(),
+      id: newId('note'),
+      folderId: state.folders.some(f => f.id === state.activeFolder) ? state.activeFolder : null,
       title: type === 'grid' ? 'Nueva hoja de cálculo' : isCode ? 'nuevo_script.js' : 'Nuevo Documento',
       type: type,
       language: isCode ? 'javascript' : 'markdown',
@@ -314,8 +447,13 @@ plugins: ["kanpad-pro", "timer", "work-report"]
       updateCurrentNoteFromView();
     }
 
+    if (window.matchMedia('(max-width: 700px)').matches) { DOM.sidebar.classList.add('is-collapsed'); DOM.btnToggleSidebar.setAttribute('aria-expanded', 'false'); }
     state.currentNoteId = id;
     DOM.noteTitleInput.value = note.title;
+
+    savedDocRange = null;
+    state.isHome = false;
+    document.querySelector('.kanpad-app').classList.remove('is-home');
 
     // Cambiar modo automáticamente según el tipo de nota
     if (note.type === 'code') {
@@ -337,11 +475,6 @@ plugins: ["kanpad-pro", "timer", "work-report"]
   function deleteNote(id, event) {
     if (event) event.stopPropagation();
 
-    if (state.notes.length <= 1) {
-      showToast('No puedes eliminar la única nota existente', 'error');
-      return;
-    }
-
     const note = state.notes.find(n => n.id === id);
     const confirmMsg = `¿Deseas eliminar "${note ? note.title : 'esta nota'}"?`;
     if (!confirm(confirmMsg)) return;
@@ -349,16 +482,19 @@ plugins: ["kanpad-pro", "timer", "work-report"]
     state.notes = state.notes.filter(n => n.id !== id);
 
     if (state.currentNoteId === id) {
-      selectNote(state.notes[0].id);
+      state.currentNoteId = null;
+      showHome();
     } else {
       renderNotesList();
     }
 
     saveNotes();
+    updateStats();
     showToast('Nota eliminada', 'info');
   }
 
   function updateCurrentNoteFromView() {
+    if (state.isHome) return;
     const note = state.notes.find(n => n.id === state.currentNoteId);
     if (!note) return;
 
@@ -378,7 +514,7 @@ plugins: ["kanpad-pro", "timer", "work-report"]
     }
   }
 
-  function renderNotesList() {
+  function filteredNotes() {
     const query = state.searchQuery.toLowerCase();
     const filtered = state.notes.filter(note => {
       const matchFilter = state.activeFilter === 'all' || note.type === state.activeFilter;
@@ -386,9 +522,16 @@ plugins: ["kanpad-pro", "timer", "work-report"]
         (note.content && note.content.toLowerCase().includes(query)) ||
         (note.rawCode && note.rawCode.toLowerCase().includes(query)) ||
         (note.grid && Object.values(note.grid.cells).some(cell => (cell.value || '').toLowerCase().includes(query)));
-      return matchFilter && matchSearch;
+      const matchFolder = state.activeFolder === 'all' || (state.activeFolder === 'unfiled' ? !note.folderId : note.folderId === state.activeFolder);
+      return matchFilter && matchSearch && matchFolder;
     });
 
+    return filtered;
+  }
+
+  function renderNotesList() {
+    renderHome();
+    const filtered = filteredNotes();
     DOM.notesList.innerHTML = '';
 
     if (filtered.length === 0) {
@@ -431,12 +574,13 @@ plugins: ["kanpad-pro", "timer", "work-report"]
         <div class="note-item-preview">${escapeHtml(previewText || 'Nota vacía...')}</div>
         <div class="note-item-footer">
           <span>${dateStr}</span>
-          <button class="note-item-delete" title="Eliminar nota" onclick="KanPad.deleteNote('${note.id}', event)">
+          <button class="note-item-delete" title="Eliminar nota">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18m-2 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
           </button>
         </div>
       `;
 
+      item.querySelector('.note-item-delete').onclick = event => deleteNote(note.id, event);
       DOM.notesList.appendChild(item);
     });
   }
@@ -493,9 +637,9 @@ plugins: ["kanpad-pro", "timer", "work-report"]
 
   // Grid usa notas independientes: cambiar de sección nunca convierte un documento en hoja.
   function switchMode(mode) {
-    if (mode === state.currentMode) return;
+    if (!state.isHome && mode === state.currentMode) return;
     updateCurrentNoteFromView();
-    if (mode === 'grid' || state.currentMode === 'grid') {
+    if (state.isHome || mode === 'grid' || state.currentMode === 'grid') {
       const existing = state.notes.find(note => note.type === mode);
       if (existing) selectNote(existing.id); else createNewNote(mode);
     } else {
@@ -510,20 +654,24 @@ plugins: ["kanpad-pro", "timer", "work-report"]
      Herramientas del Modo Documento (WYSIWYG, Tablas, Callouts)
      ========================================================================== */
   function execDocCmd(command, value = null) {
+    restoreDocSelection();
     document.execCommand(command, false, value);
-    DOM.docSheet.focus();
+    rememberDocSelection();
     triggerAutosave();
     updateStats();
   }
 
   function insertTableModal() {
+    rememberDocSelection();
     DOM.tableModal.classList.add('active');
     DOM.tableRowsInput.focus();
   }
 
   function confirmInsertTable() {
-    const rows = parseInt(DOM.tableRowsInput.value, 10) || 3;
-    const cols = parseInt(DOM.tableColsInput.value, 10) || 3;
+    const rows = Number(DOM.tableRowsInput.value);
+    const cols = Number(DOM.tableColsInput.value);
+    if (!Number.isInteger(rows) || rows < 1 || rows > 50) { DOM.tableRowsInput.reportValidity(); return; }
+    if (!Number.isInteger(cols) || cols < 1 || cols > 15) { DOM.tableColsInput.reportValidity(); return; }
 
     let html = '<table><thead><tr>';
     for (let c = 1; c <= cols; c++) {
@@ -540,9 +688,8 @@ plugins: ["kanpad-pro", "timer", "work-report"]
     }
     html += '</tbody></table><p><br></p>';
 
-    document.execCommand('insertHTML', false, html);
     closeModals();
-    triggerAutosave();
+    insertDocHTML(html);
   }
 
   function insertCallout(type = 'info') {
@@ -567,8 +714,7 @@ plugins: ["kanpad-pro", "timer", "work-report"]
       <p><br></p>
     `;
 
-    document.execCommand('insertHTML', false, html);
-    triggerAutosave();
+    insertDocHTML(html);
   }
 
   function insertDocCodeBlock() {
@@ -586,8 +732,7 @@ plugins: ["kanpad-pro", "timer", "work-report"]
       <p><br></p>
     `;
 
-    document.execCommand('insertHTML', false, html);
-    triggerAutosave();
+    insertDocHTML(html);
   }
 
   /* ==========================================================================
@@ -626,6 +771,7 @@ plugins: ["kanpad-pro", "timer", "work-report"]
      Integración con Tareas de Kanlane
      ========================================================================== */
   async function openKanlaneTasksModal() {
+    rememberDocSelection();
     DOM.taskModal.classList.add('active');
     DOM.taskListContainer.innerHTML = '<div style="padding:16px; text-align:center;">Cargando tareas de Kanlane...</div>';
 
@@ -686,8 +832,7 @@ plugins: ["kanpad-pro", "timer", "work-report"]
         </div>
         <p><br></p>
       `;
-      document.execCommand('insertHTML', false, taskCardHTML);
-      triggerAutosave();
+      insertDocHTML(taskCardHTML);
     }
     showToast(`Tarea "${task.title}" vinculada`, 'success');
   }
@@ -745,7 +890,10 @@ plugins: ["kanpad-pro", "timer", "work-report"]
      ========================================================================== */
   function updateStats() {
     let text = '';
-    if (state.currentMode === 'grid' && grid) {
+    if (state.isHome) {
+      DOM.statusMode.textContent = 'Inicio';
+      DOM.statusWords.textContent = `${state.notes.length} notas`;
+    } else if (state.currentMode === 'grid' && grid) {
       DOM.statusWords.textContent = `${grid.data.rows} filas × ${grid.data.cols} columnas`;
     } else if (state.currentMode === 'code') {
       text = DOM.codeTextarea.value;
@@ -790,6 +938,7 @@ plugins: ["kanpad-pro", "timer", "work-report"]
 
   function closeModals() {
     document.querySelectorAll('.modal-overlay').forEach(m => m.classList.remove('active'));
+    manageAction = null;
   }
 
   function escapeHtml(str) {
@@ -806,21 +955,32 @@ plugins: ["kanpad-pro", "timer", "work-report"]
      Event Listeners
      ========================================================================== */
   function setupEventListeners() {
+    document.getElementById('btnHome').onclick = showHome;
+    document.getElementById('btnNewFolder').onclick = () => manage('createFolder');
+    document.querySelectorAll('[data-create]').forEach(btn => { btn.onclick = () => createNewNote(btn.dataset.create); });
+    document.getElementById('homeSort').onchange = e => { state.homeSort = e.target.value; renderHome(); };
+    document.getElementById('manageForm').onsubmit = confirmManage;
+    document.addEventListener('selectionchange', rememberDocSelection);
+    // Conservar la selección al pulsar botones; los selectores y los modales pueden tomar el foco.
+    DOM.docToolbar.addEventListener('mousedown', e => {
+      rememberDocSelection();
+      if (e.target.closest('button')) e.preventDefault();
+    });
     // Título de la nota
     DOM.noteTitleInput.addEventListener('input', () => {
+      updateCurrentNoteFromView();
       triggerAutosave();
       renderNotesList();
     });
 
     // Guardado manual
-    DOM.btnSave.addEventListener('click', () => {
-      saveNotes(true);
-      showToast('Guardado correctamente', 'success');
+    DOM.btnSave.addEventListener('click', async () => {
+      if (await saveNotes(true)) showToast('Guardado correctamente', 'success');
     });
 
     // Nueva nota
     DOM.btnNewNote.addEventListener('click', () => {
-      createNewNote(state.currentMode);
+      createNewNote(state.isHome ? 'doc' : state.currentMode);
     });
 
     // Exportar
@@ -832,7 +992,15 @@ plugins: ["kanpad-pro", "timer", "work-report"]
     // Sidebar colapso
     DOM.btnToggleSidebar.addEventListener('click', () => {
       DOM.sidebar.classList.toggle('is-collapsed');
+      DOM.btnToggleSidebar.setAttribute('aria-expanded', String(!DOM.sidebar.classList.contains('is-collapsed')));
     });
+    const mobile = window.matchMedia('(max-width: 700px)');
+    const adaptSidebar = () => {
+      DOM.sidebar.classList.toggle('is-collapsed', mobile.matches);
+      DOM.btnToggleSidebar.setAttribute('aria-expanded', String(!mobile.matches));
+    };
+    mobile.addEventListener('change', adaptSidebar);
+    adaptSidebar();
 
     // Búsqueda
     DOM.searchInput.addEventListener('input', (e) => {
