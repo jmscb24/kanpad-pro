@@ -39,6 +39,10 @@
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"></polyline><polyline points="8 6 2 12 8 18"></polyline></svg>
             <span>Notepad++ (Código)</span>
           </button>
+          <button class="mode-btn" data-mode="grid" title="Grid: hoja de cálculo">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18M9 3v18M15 3v18"/></svg>
+            <span>Grid</span>
+          </button>
         </div>
       </div>
 
@@ -80,6 +84,7 @@
             <button class="filter-tab active" data-filter="all">Todos</button>
             <button class="filter-tab" data-filter="doc">Docs</button>
             <button class="filter-tab" data-filter="code">Código</button>
+            <button class="filter-tab" data-filter="grid">Grid</button>
           </div>
         </div>
 
@@ -199,6 +204,30 @@
             <textarea id="codeTextarea" class="code-textarea" spellcheck="false" placeholder="// Pega o escribe aquí tu código..."></textarea>
           </div>
         </div>
+        <!-- Grid: los valores originales se guardan separados de los resultados. -->
+        <section id="gridContainer" class="grid-container" aria-label="Hoja de cálculo Grid" hidden>
+          <div class="grid-toolbar" role="toolbar" aria-label="Herramientas de Grid">
+            <button id="gridUndo" class="app-btn" title="Deshacer (Ctrl+Z)">↶ Deshacer</button>
+            <button id="gridRedo" class="app-btn" title="Rehacer (Ctrl+Y)">↷ Rehacer</button>
+            <div class="tb-divider"></div>
+            <button id="gridBold" class="tb-btn" aria-label="Negrita" aria-pressed="false"><strong>B</strong></button>
+            <select id="gridFormat" class="tb-select" aria-label="Formato de las celdas">
+              <option value="auto">Automático</option><option value="number">Número (2 decimales)</option><option value="currency">Moneda (€)</option><option value="percent">Porcentaje</option>
+            </select>
+            <button id="gridAddRow" class="app-btn">+ Fila</button>
+            <button id="gridAddCol" class="app-btn">+ Columna</button>
+            <label class="app-btn grid-import">Importar CSV<input id="gridImport" type="file" accept=".csv,.tsv,text/csv,text/tab-separated-values" hidden></label>
+          </div>
+          <div class="grid-formula-bar">
+            <input id="gridAddress" aria-label="Ir a celda (por ejemplo A1)" value="A1" spellcheck="false">
+            <label for="gridFormula">ƒx</label>
+            <input id="gridFormula" aria-label="Valor o fórmula de la celda" placeholder="Escribe un valor o una fórmula, p. ej. =SUMA(A1:A10)" autocomplete="off" spellcheck="false">
+          </div>
+          <div id="gridViewport" class="grid-viewport">
+            <table id="gridTable" class="grid-table" role="grid" aria-label="Celdas de la hoja de cálculo"></table>
+          </div>
+          <div class="grid-footer"><span>Hoja 1</span><span id="gridSummary" aria-live="polite"></span><span class="grid-hint">Mayús + clic: seleccionar rango · Doble clic / F2: editar</span></div>
+        </section>
       </main>
     </div>
 
@@ -215,7 +244,7 @@
       <div class="statusbar-right">
         <span id="statusWords">0 palabras</span>
         <span>UTF-8</span>
-        <span>KanPad Pro v1.0</span>
+        <span>KanPad Pro v1.1</span>
       </div>
     </footer>
   </div>
@@ -269,6 +298,7 @@
   <!-- Scripts -->
   <script src="https://kanlane.com/plugins/sdk/workhub-plugin.js"></script>
   <script src="js/code-highlighter.js"></script>
+  <script src="js/grid.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>

@@ -1,8 +1,8 @@
 {
   "id": "com.yalerooo.kanpad-pro",
   "name": "KanPad Pro",
-  "version": "1.0.0",
-  "description": "El bloc de notas pro para Kanlane: Documentos tipo Word/Docs con tablas y editor de código tipo Notepad++ con formateador inteligente.",
+  "version": "1.1.0",
+  "description": "El bloc de notas pro para Kanlane: Documentos tipo Word/Docs con tablas y editor de código tipo Notepad++ con formateador inteligente y Grid, hoja de cálculo con fórmulas y CSV.",
   "icon": "file-text",
   "entry": "index.html",
   "permissions": [

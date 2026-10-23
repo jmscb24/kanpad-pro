@@ -13,8 +13,8 @@
     isStandalone: false,     // Modo de desarrollo/local
     notes: [],               // Lista de notas y documentos
     currentNoteId: null,     // ID de la nota activa
-    currentMode: 'doc',      // 'doc' | 'code' | 'split'
-    activeFilter: 'all',     // 'all' | 'doc' | 'code'
+    currentMode: 'doc',      // 'doc' | 'code' | 'grid'
+    activeFilter: 'all',     // 'all' | 'doc' | 'code' | 'grid'
     searchQuery: '',
     autosaveTimer: null,
     isSaving: false
@@ -156,7 +156,14 @@ plugins: ["kanpad-pro", "timer", "work-report"]
   /* ==========================================================================
      Inicialización e Integración con Kanlane SDK
      ========================================================================== */
+  let grid;
   async function init() {
+    grid = new KanPadGrid.Editor(() => {
+      updateCurrentNoteFromView();
+      triggerAutosave();
+      renderNotesList();
+      updateStats();
+    }, updateStats, showToast);
     setupEventListeners();
     updateLineNumbers();
 
@@ -165,7 +172,7 @@ plugins: ["kanpad-pro", "timer", "work-report"]
         state.wh = await window.WorkhubPlugin.connect({
           id: 'com.yalerooo.kanpad-pro',
           name: 'KanPad Pro',
-          version: '1.0.0',
+          version: '1.1.0',
           icon: 'file-text',
           permissions: ['storage', 'tasks:read', 'tasks:write', 'ui:extend']
         });
@@ -279,7 +286,7 @@ plugins: ["kanpad-pro", "timer", "work-report"]
     const isCode = type === 'code';
     const newNote = {
       id: 'note_' + Date.now(),
-      title: isCode ? 'nuevo_script.js' : 'Nuevo Documento',
+      title: type === 'grid' ? 'Nueva hoja de cálculo' : isCode ? 'nuevo_script.js' : 'Nuevo Documento',
       type: type,
       language: isCode ? 'javascript' : 'markdown',
       updatedAt: new Date().toISOString(),
@@ -287,6 +294,7 @@ plugins: ["kanpad-pro", "timer", "work-report"]
       rawCode: isCode ? '// Nuevo archivo de código\n' : ''
     };
 
+    if (type === 'grid') newNote.grid = KanPadGrid.createData();
     state.notes.unshift(newNote);
     renderNotesList();
     selectNote(newNote.id);
@@ -314,6 +322,9 @@ plugins: ["kanpad-pro", "timer", "work-report"]
       DOM.codeTextarea.value = note.rawCode || '';
       DOM.codeLangSelect.value = note.language || 'javascript';
       setMode('code');
+    } else if (note.type === 'grid') {
+      grid.load(note.grid);
+      setMode('grid');
     } else {
       DOM.docSheet.innerHTML = note.content || '';
       setMode('doc');
@@ -358,6 +369,9 @@ plugins: ["kanpad-pro", "timer", "work-report"]
       note.rawCode = DOM.codeTextarea.value;
       note.language = DOM.codeLangSelect.value;
       note.type = 'code';
+    } else if (state.currentMode === 'grid') {
+      note.grid = grid.snapshot();
+      note.type = 'grid';
     } else {
       note.content = DOM.docSheet.innerHTML;
       note.type = 'doc';
@@ -370,7 +384,8 @@ plugins: ["kanpad-pro", "timer", "work-report"]
       const matchFilter = state.activeFilter === 'all' || note.type === state.activeFilter;
       const matchSearch = !query || note.title.toLowerCase().includes(query) ||
         (note.content && note.content.toLowerCase().includes(query)) ||
-        (note.rawCode && note.rawCode.toLowerCase().includes(query));
+        (note.rawCode && note.rawCode.toLowerCase().includes(query)) ||
+        (note.grid && Object.values(note.grid.cells).some(cell => (cell.value || '').toLowerCase().includes(query)));
       return matchFilter && matchSearch;
     });
 
@@ -395,6 +410,8 @@ plugins: ["kanpad-pro", "timer", "work-report"]
       let previewText = '';
       if (note.type === 'code') {
         previewText = (note.rawCode || '').trim().slice(0, 60);
+      } else if (note.type === 'grid') {
+        previewText = Object.values(note.grid?.cells || {}).map(cell => cell.value || '').filter(Boolean).join(' · ').slice(0, 60) || 'Hoja de cálculo vacía';
       } else {
         const tmp = document.createElement('div');
         tmp.innerHTML = note.content || '';
@@ -409,7 +426,7 @@ plugins: ["kanpad-pro", "timer", "work-report"]
       item.innerHTML = `
         <div class="note-item-header">
           <span class="note-item-title">${escapeHtml(note.title)}</span>
-          <span class="note-item-type">${note.type === 'code' ? (note.language || 'code') : 'doc'}</span>
+          <span class="note-item-type">${note.type === 'code' ? (note.language || 'code') : note.type === 'grid' ? 'grid' : 'doc'}</span>
         </div>
         <div class="note-item-preview">${escapeHtml(previewText || 'Nota vacía...')}</div>
         <div class="note-item-footer">
@@ -429,6 +446,10 @@ plugins: ["kanpad-pro", "timer", "work-report"]
      ========================================================================== */
   function setMode(mode) {
     state.currentMode = mode;
+    document.getElementById('gridContainer').hidden = mode !== 'grid';
+    DOM.btnNewNote.querySelector('span').textContent = mode === 'grid' ? 'Nueva hoja Grid' : 'Nueva Nota / Doc';
+    DOM.btnExport.title = mode === 'grid' ? 'Descargar hoja como CSV' : 'Descargar documento o código';
+    DOM.btnKanlaneTasks.disabled = mode === 'grid';
 
     DOM.modeBtns.forEach(btn => {
       btn.classList.toggle('active', btn.dataset.mode === mode);
@@ -460,9 +481,29 @@ plugins: ["kanpad-pro", "timer", "work-report"]
 
       updateLineNumbers();
       DOM.statusMode.textContent = `Modo: Notepad++ [${DOM.codeLangSelect.value.toUpperCase()}]`;
+    } else if (mode === 'grid') {
+      DOM.docToolbar.style.display = 'none';
+      DOM.docViewport.style.display = 'none';
+      DOM.codeContainer.style.display = 'none';
+      DOM.statusMode.textContent = 'Modo: Grid (Hoja de cálculo)';
     }
 
     updateStats();
+  }
+
+  // Grid usa notas independientes: cambiar de sección nunca convierte un documento en hoja.
+  function switchMode(mode) {
+    if (mode === state.currentMode) return;
+    updateCurrentNoteFromView();
+    if (mode === 'grid' || state.currentMode === 'grid') {
+      const existing = state.notes.find(note => note.type === mode);
+      if (existing) selectNote(existing.id); else createNewNote(mode);
+    } else {
+      setMode(mode);
+      updateCurrentNoteFromView();
+    }
+    triggerAutosave();
+    renderNotesList();
   }
 
   /* ==========================================================================
@@ -664,7 +705,11 @@ plugins: ["kanpad-pro", "timer", "work-report"]
     let filename = note.title;
     let mimeType = 'text/plain';
 
-    if (note.type === 'code') {
+    if (note.type === 'grid') {
+      content = KanPadGrid.toCSV(note.grid);
+      if (!filename.toLowerCase().endsWith('.csv')) filename += '.csv';
+      mimeType = 'text/csv;charset=utf-8';
+    } else if (note.type === 'code') {
       content = note.rawCode || '';
       const extMap = {
         javascript: 'js',
@@ -700,7 +745,9 @@ plugins: ["kanpad-pro", "timer", "work-report"]
      ========================================================================== */
   function updateStats() {
     let text = '';
-    if (state.currentMode === 'code') {
+    if (state.currentMode === 'grid' && grid) {
+      DOM.statusWords.textContent = `${grid.data.rows} filas × ${grid.data.cols} columnas`;
+    } else if (state.currentMode === 'code') {
       text = DOM.codeTextarea.value;
       const lines = text.split('\n').length;
       const chars = text.length;
@@ -773,7 +820,7 @@ plugins: ["kanpad-pro", "timer", "work-report"]
 
     // Nueva nota
     DOM.btnNewNote.addEventListener('click', () => {
-      createNewNote(state.currentMode === 'code' ? 'code' : 'doc');
+      createNewNote(state.currentMode);
     });
 
     // Exportar
@@ -806,7 +853,7 @@ plugins: ["kanpad-pro", "timer", "work-report"]
     // Modos
     DOM.modeBtns.forEach(btn => {
       btn.addEventListener('click', () => {
-        setMode(btn.dataset.mode);
+        switchMode(btn.dataset.mode);
       });
     });
 
@@ -856,6 +903,8 @@ plugins: ["kanpad-pro", "timer", "work-report"]
 
     // Confirmar inserción de tabla
     DOM.btnConfirmTable.addEventListener('click', confirmInsertTable);
+
+    window.addEventListener('pagehide', () => { saveNotes(false); });
 
     // Cerrar modales con tecla Escape
     window.addEventListener('keydown', (e) => {

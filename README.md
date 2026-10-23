@@ -20,7 +20,20 @@
 - **Copiar Todo**: Copia todo el contenido del código directamente al portapapeles.
 - **Barra de Estado**: Contador de líneas, palabras, caracteres y estado de guardado.
 
-### 3. 🎯 Integración Nativa con Kanlane
+### 3. ▦ Grid (Hoja de cálculo)
+- **Tercera sección independiente** junto a Documento y Notepad++, con filtro Grid y varias hojas guardadas como notas.
+- **Celdas editables** con cabeceras A–Z (ampliables hasta CV) y filas numeradas. Cada hoja empieza con 50 filas y 26 columnas, ampliables hasta 1.000 × 100.
+- **Fórmulas** con referencias (`=A1*B1`), rangos (`=SUMA(A1:A10)`), paréntesis, `+`, `-`, `*`, `/`, `^`, y funciones `SUM`/`SUMA`, `AVERAGE`/`PROMEDIO`, `MIN`, `MAX`, `COUNT`/`CONTAR`. Recalcula al editar y muestra errores de referencia, división por cero o referencias circulares.
+- **Barra de fórmulas y dirección de celda**, negrita, número con dos decimales, euros y porcentajes; resumen de selección con suma.
+- **Teclado y portapapeles**: flechas, Tab y Enter para navegar; doble clic o F2 para editar; Escape para cancelar; Mayús + clic o Mayús + flechas para seleccionar rangos; Supr para vaciar; copiar, cortar y pegar tablas desde Excel/Google Sheets.
+- **Deshacer y rehacer** (botones, Ctrl/Cmd+Z y Ctrl/Cmd+Y), incluyendo pegado, formato e importación. El historial se conserva mientras la hoja está abierta.
+- **Importación CSV/TSV** con comillas, saltos de línea y detección de separadores (coma, punto y coma o tabulador). Importar reemplaza la hoja previa tras confirmarlo. Límite de archivo: 5 MB.
+- **Exportación CSV** desde el botón Exportar: descarga resultados calculados en UTF-8. Las fórmulas y el formato se conservan en el guardado de KanPad; CSV no conserva formato ni fórmulas. No importa archivos `.xlsx`.
+- **Autosave** mediante el almacenamiento existente de Kanlane y respaldo local. El cálculo se realiza en el navegador sin ejecutar fórmulas como JavaScript.
+
+Ejemplo: escribe `10` en A1, `20` en A2 y `=SUMA(A1:A2)` en B1 para obtener `30`. Las fórmulas admiten punto decimal y separadores de argumentos `,` o `;`; los valores numéricos de las celdas admiten coma decimal.
+
+### 4. 🎯 Integración Nativa con Kanlane
 - **SDK Oficial (`workhub-plugin.js`)**: Comunicación segura mediante `iframe` aislado de Kanlane.
 - **Autosave y Almacenamiento Persistente**: Guarda automáticamente todas las notas en el almacenamiento de Kanlane (`wh.storage`).
 - **📌 Vinculación de Tareas**: Puedes abrir un modal con tus tareas actuales de Kanlane (`wh.tasks.list()`) e insertarlas como tarjetas vinculadas en tus notas.
@@ -39,7 +52,8 @@ kanpad-pro/
 │   └── styles.css          # Estilos modernos con variables de diseño de Kanlane
 ├── js/
 │   ├── app.js              # Lógica principal, estado de notas y SDK Kanlane
-│   └── code-highlighter.js # Formateador y detector de sintaxis multilinguaje
+│   ├── code-highlighter.js # Formateador y detector de sintaxis multilinguaje
+│   └── grid.js             # Editor Grid, fórmulas, portapapeles y CSV
 └── README.md               # Esta documentación
 ```
 
@@ -89,3 +103,14 @@ Los plugins de Kanlane se ejecutan mediante URLs seguras con HTTPS (por ejemplo 
 - `tasks:read`: Permite listar tus tareas para vincularlas en las notas.
 - `tasks:write`: Permite crear o actualizar tareas desde tus notas.
 - `ui:extend`: Permite abrir vistas y formularios dentro de Kanlane.
+
+
+## Verificación
+
+Pruebas del motor de cálculo y CSV (Node.js, sin instalar dependencias):
+
+```bash
+node --test tests/grid.test.js
+```
+
+Prueba funcional del navegador: con Playwright y Chromium instalados, sirve el proyecto con `python3 -m http.server 8080` y ejecuta `node tests/grid.browser.cjs`. Puedes indicar otra URL mediante `GRID_TEST_URL`. Comprueba edición, recálculo, formato, rangos, pegado, deshacer/rehacer, guardado tras recarga, aislamiento entre notas, CSV y tamaño móvil.

@@ -1,0 +1,84 @@
+// Requiere Playwright y la aplicación servida en GRID_TEST_URL (por defecto localhost:8080).
+const { chromium } = require('playwright');
+const assert = require('node:assert/strict');
+(async () => {
+  const browser = await chromium.launch({ headless: true, executablePath: process.env.GRID_CHROMIUM_PATH || undefined, args: ['--no-sandbox', '--disable-dev-shm-usage'] });
+  try {
+    const page = await browser.newPage({ viewport: { width: 1440, height: 900 }, acceptDownloads: true });
+    const errors = [];
+    page.on('pageerror', e => errors.push(e.message));
+    await page.route('https://kanlane.com/**', route => route.abort());
+    const url = process.env.GRID_TEST_URL || 'http://127.0.0.1:8080';
+    await page.goto(url);
+    await page.locator('.note-item').first().waitFor();
+    const originalDoc = await page.locator('#docSheet').innerHTML();
+    await page.locator('[data-mode="grid"]').click();
+    await page.locator('#gridContainer').waitFor({ state: 'visible' });
+    assert.equal(await page.locator('#gridTable td').count(), 1300);
+    async function fill(ref, value) {
+      await page.locator(`[data-ref="${ref}"]`).dblclick();
+      await page.locator('.grid-cell-input').fill(value);
+      await page.locator('.grid-cell-input').press('Enter');
+    }
+    await fill('A1', '10'); await fill('A2', '20'); await fill('B1', '=SUMA(A1:A2)');
+    assert.equal(await page.locator('[data-ref="B1"]').innerText(), '30');
+    await fill('A1', '15');
+    assert.equal(await page.locator('[data-ref="B1"]').innerText(), '35');
+    await page.locator('[data-ref="B1"]').click();
+    assert.equal(await page.locator('#gridFormula').inputValue(), '=SUMA(A1:A2)');
+    await page.locator('#gridBold').click();
+    await page.locator('#gridFormat').selectOption('currency');
+    assert.match(await page.locator('[data-ref="B1"]').innerText(), /35,00/);
+    await page.locator('#gridUndo').click();
+    assert.equal(await page.locator('[data-ref="B1"]').innerText(), '35');
+    await page.locator('#gridRedo').click();
+    assert.match(await page.locator('[data-ref="B1"]').innerText(), /35,00/);
+    await page.locator('[data-ref="A1"]').click();
+    await page.locator('[data-ref="B2"]').click({ modifiers: ['Shift'] });
+    assert.equal(await page.locator('[aria-selected="true"]').count(), 4);
+    await page.locator('#gridTable').evaluate(table => {
+      const clip = new DataTransfer(); clip.setData('text/plain', 'Producto\tCantidad\nPrueba\t3');
+      table.dispatchEvent(new ClipboardEvent('paste', { bubbles: true, clipboardData: clip }));
+    });
+    assert.equal(await page.locator('[data-ref="B2"]').innerText(), '3');
+    await page.locator('#gridUndo').click();
+    assert.equal(await page.locator('[data-ref="A1"]').innerText(), '15');
+    await page.locator('#gridAddRow').click(); await page.locator('#gridAddCol').click();
+    assert.equal(await page.locator('#gridTable td').count(), 51 * 27);
+    await page.locator('#btnSave').click();
+    await page.reload();
+    await page.locator('[data-mode="grid"]').click();
+    assert.match(await page.locator('[data-ref="B1"]').innerText(), /35,00/);
+    await page.locator('[data-mode="doc"]').click();
+    assert.equal(await page.locator('#docSheet').innerHTML(), originalDoc);
+    await page.locator('[data-mode="grid"]').click();
+    await page.locator('#btnNewNote').click();
+    assert.equal(await page.locator('[data-ref="A1"]').innerText(), '');
+    await fill('A1', '99');
+    await page.locator('[data-filter="grid"]').click();
+    assert.equal(await page.locator('.note-item').count(), 2);
+    await page.locator('.note-item').nth(1).click();
+    assert.equal(await page.locator('[data-ref="A1"]').innerText(), '15');
+    const downloadEvent = page.waitForEvent('download'); await page.locator('#btnExport').click();
+    const download = await downloadEvent; assert.ok(download.suggestedFilename().endsWith('.csv'));
+    page.once('dialog', dialog => dialog.accept());
+    await page.locator('#gridImport').setInputFiles({ name: 'import.csv', mimeType: 'text/csv', buffer: Buffer.from('Nombre;Total\nEjemplo;42') });
+    await page.waitForFunction(() => document.querySelector('[data-ref="B2"]').textContent === '42');
+    await page.locator('#gridUndo').click(); assert.equal(await page.locator('[data-ref="A1"]').innerText(), '15');
+    await page.locator('[data-ref="A1"]').click(); await page.keyboard.press('F2');
+    await page.locator('.grid-cell-input').fill('cancelado'); await page.keyboard.press('Escape');
+    assert.equal(await page.locator('[data-ref="A1"]').innerText(), '15');
+    await page.locator('#gridFormula').fill('25'); await page.locator('#gridFormula').press('Enter');
+    assert.equal(await page.locator('[data-ref="A1"]').innerText(), '25');
+    await page.locator('#gridAddress').fill('AA51'); await page.locator('#gridAddress').press('Enter');
+    assert.equal(await page.locator('.grid-active').getAttribute('data-ref'), 'AA51');
+    await page.screenshot({ path: '/tmp/kanpad-grid-desktop.png' });
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.locator('#btnToggleSidebar').click();
+    await page.locator('[data-ref="A1"]').click();
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
+    await page.screenshot({ path: '/tmp/kanpad-grid-mobile.png' });
+    assert.deepEqual(errors, []);
+    console.log('OK: edición, fórmulas, formato, deshacer, rangos, pegado, dimensiones, recarga, aislamiento, CSV y móvil.');
+  } finally { await browser.close(); }
+})().catch(e => { console.error(e); process.exit(1); });
