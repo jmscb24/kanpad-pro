@@ -1,7 +1,7 @@
 /**
  * KanPad Pro - Aplicación Principal
  * El bloc de notas avanzado para Kanlane:
- * Documentos enriquecidos (tipo Word/Docs) con tablas + Editor de código (tipo Notepad++) con formateo inteligente.
+ * Documentos enriquecidos (tipo Word/Docs) con tablas + Editor de código (tipo Codepad) con formateo inteligente.
  */
 
 (function () {
@@ -19,8 +19,8 @@
     homeSort: 'updated',
     notes: [],               // Lista de notas y documentos
     currentNoteId: null,     // ID de la nota activa
-    currentMode: 'doc',      // 'doc' | 'code' | 'grid'
-    activeFilter: 'all',     // 'all' | 'doc' | 'code' | 'grid'
+    currentMode: 'doc',      // 'doc' | 'code' | 'grid' | 'markdown'
+    activeFilter: 'all',     // 'all' | 'doc' | 'code' | 'grid' | 'markdown'
     searchQuery: '',
     autosaveTimer: null,
     isSaving: false
@@ -50,6 +50,9 @@
     codeLangSelect: document.getElementById('codeLangSelect'),
     btnFormatCode: document.getElementById('btnFormatCode'),
     btnCopyCode: document.getElementById('btnCopyCode'),
+    markdownContainer: document.getElementById('markdownContainer'),
+    markdownSource: document.getElementById('markdownSource'),
+    markdownPreview: document.getElementById('markdownPreview'),
     // Modals
     taskModal: document.getElementById('taskModal'),
     taskListContainer: document.getElementById('taskListContainer'),
@@ -77,9 +80,11 @@
   let projectGeneration = 0;
   let saveTask = 0;
   let savedInKanlane = false;
+  let saveFeedbackTimer;
+  let markdownRenderTimer;
   const MANIFEST = {
-    id: 'com.yalerooo.kanpad-pro', name: 'KanPad Pro', version: '1.3.0',
-    description: 'Notas, documentos, código y hojas Grid organizados en carpetas del proyecto. Sigue la apariencia de Kanlane.',
+    id: 'com.yalerooo.kanpad-pro', name: 'KanPad Pro', version: '1.4.0',
+    description: 'Notas, documentos, Codepad, Markdown y hojas Grid organizados en carpetas del proyecto. Sigue la apariencia de Kanlane.',
     author: 'Javier', homepage: 'https://github.com/jmscb24/kanpad-pro', icon: 'book', color: 214,
     permissions: ['storage', 'tasks:read', 'ui:extend']
   };
@@ -139,6 +144,7 @@
     const generation = ++projectGeneration;
     saveTask++; saving = null; saveAgain = false;
     state.ready = false; state.dirty = false; clearTimeout(state.autosaveTimer);
+    setSaveButton('idle');
     store.invalidate(); state.currentNoteId = null; state.isHome = true;
     savedDocRange = null; closeModals(); KanPadDialogs.cancel();
     connectionMessage('Cargando las notas del proyecto…');
@@ -165,6 +171,7 @@
   async function saveNotes() {
     if (!state.ready) return false;
     updateCurrentNoteFromView();
+    clearTimeout(state.autosaveTimer);
     if (saving) { saveAgain = true; return saving; }
     const generation = projectGeneration, task = ++saveTask;
     saving = (async () => {
@@ -172,6 +179,7 @@
         do {
           saveAgain = false;
           setSavingStatus(true);
+          setSaveButton('saving');
           const snapshot = { notes: state.notes, folders: state.folders };
           const serialized = JSON.stringify(snapshot);
           await store.save(snapshot);
@@ -180,15 +188,27 @@
           if (serialized !== JSON.stringify({ notes: state.notes, folders: state.folders })) saveAgain = true;
         } while (saveAgain);
         state.dirty = false; savedInKanlane = !state.isStandalone;
-        setSavingStatus(false); return true;
+        setSavingStatus(false); setSaveButton('saved'); return true;
       } catch (error) {
         if (generation !== projectGeneration) return false;
         state.dirty = true; state.isSaving = false;
         DOM.statusDot.classList.remove('saving'); DOM.statusSaveMsg.textContent = 'Sin guardar · ' + error.message;
+        setSaveButton('error');
         showToast('No se pudo guardar: ' + error.message, 'error'); return false;
       } finally { if (task === saveTask) saving = null; }
     })();
     return saving;
+  }
+
+  function setSaveButton(status) {
+    clearTimeout(saveFeedbackTimer);
+    DOM.btnSave.dataset.saveState = status;
+    DOM.btnSave.disabled = status === 'saving';
+    DOM.btnSave.setAttribute('aria-busy', String(status === 'saving'));
+    DOM.btnSave.setAttribute('aria-label', { idle: 'Guardar nota', saving: 'Guardando nota', saved: 'Nota guardada', error: 'Reintentar guardado' }[status]);
+    DOM.btnSave.querySelector('span').textContent = { idle: 'Guardar', saving: 'Guardando…', saved: '✓ Guardado', error: 'Reintentar' }[status];
+    DOM.btnSave.title = status === 'error' ? 'No se pudo guardar. Pulsa para reintentar.' : status === 'saved' ? 'Cambios guardados correctamente' : 'Guardar nota ahora';
+    if (status === 'saved') saveFeedbackTimer = setTimeout(() => setSaveButton('idle'), 2500);
   }
 
   function setSavingStatus(saving) {
@@ -206,6 +226,7 @@
 
   function triggerAutosave() {
     state.dirty = true;
+    if (!saving) setSaveButton('idle');
     setSavingStatus(true);
     clearTimeout(state.autosaveTimer);
     state.autosaveTimer = setTimeout(() => {
@@ -340,6 +361,31 @@
     rememberDocSelection(); updateCurrentNoteFromView(); triggerAutosave(); updateStats(); renderNotesList();
   }
 
+  function insertMarkdownInDoc(source) {
+    restoreDocSelection();
+    const selection = window.getSelection(), range = selection.getRangeAt(0);
+    range.deleteContents();
+    // Partir el párrafo en el cursor evita heredar un H1 del documento y envolver
+    // todo el Markdown en ese título, como hace insertHTML en Chromium.
+    let block = range.startContainer.nodeType === Node.ELEMENT_NODE ? range.startContainer : range.startContainer.parentElement;
+    while (block && block !== DOM.docSheet && !/^(P|H[1-6]|PRE)$/.test(block.tagName)) block = block.parentElement;
+    let tail;
+    if (block && block !== DOM.docSheet) {
+      const tailRange = range.cloneRange();
+      tailRange.setEnd(block, block.childNodes.length);
+      const trailing = tailRange.extractContents();
+      if (trailing.textContent || trailing.querySelector('img, table, input, hr')) { tail = block.cloneNode(false); tail.removeAttribute('id'); tail.append(trailing); }
+      range.setStartAfter(block); range.collapse(true);
+      if (!block.textContent && !block.querySelector('img, table, input')) block.remove();
+    }
+    const fragment = range.createContextualFragment(KanPadMarkdown.render(source));
+    const last = fragment.lastChild;
+    if (tail) fragment.append(tail);
+    range.insertNode(fragment);
+    if (last) { range.setStartAfter(last); range.collapse(true); selection.removeAllRanges(); selection.addRange(range); }
+    rememberDocSelection(); updateCurrentNoteFromView(); triggerAutosave(); updateStats(); renderNotesList();
+  }
+
   function createNewNote(type = 'doc') {
     state.activeFilter = 'all'; state.searchQuery = ''; DOM.searchInput.value = '';
     DOM.filterTabs.forEach(tab => tab.classList.toggle('active', tab.dataset.filter === 'all'));
@@ -347,7 +393,7 @@
     const newNote = {
       id: newId('note'),
       folderId: state.folders.some(f => f.id === state.activeFolder) ? state.activeFolder : null,
-      title: type === 'grid' ? 'Nueva hoja de cálculo' : isCode ? 'nuevo_script.js' : 'Nuevo Documento',
+      title: type === 'markdown' ? 'Nueva nota Markdown' : type === 'grid' ? 'Nueva hoja de cálculo' : isCode ? 'nuevo_script.js' : 'Nuevo Documento',
       type: type,
       language: isCode ? 'javascript' : 'markdown',
       updatedAt: new Date().toISOString(),
@@ -355,6 +401,7 @@
       rawCode: isCode ? '// Nuevo archivo de código\n' : ''
     };
 
+    if (type === 'markdown') { newNote.content = ''; newNote.markdown = ''; }
     if (type === 'grid') newNote.grid = KanPadGrid.createData();
     state.notes.unshift(newNote);
     renderNotesList();
@@ -388,6 +435,10 @@
       DOM.codeTextarea.value = note.rawCode || '';
       DOM.codeLangSelect.value = note.language || 'javascript';
       setMode('code');
+    } else if (note.type === 'markdown') {
+      DOM.markdownSource.value = note.markdown || '';
+      renderMarkdown();
+      setMode('markdown');
     } else if (note.type === 'grid') {
       grid.load(note.grid);
       setMode('grid');
@@ -433,6 +484,9 @@
       note.rawCode = DOM.codeTextarea.value;
       note.language = DOM.codeLangSelect.value;
       note.type = 'code';
+    } else if (state.currentMode === 'markdown') {
+      note.markdown = DOM.markdownSource.value;
+      note.type = 'markdown';
     } else if (state.currentMode === 'grid') {
       note.grid = grid.snapshot();
       note.type = 'grid';
@@ -449,6 +503,7 @@
       const matchFilter = state.activeFilter === 'all' || note.type === state.activeFilter;
       const matchSearch = !query || note.title.toLowerCase().includes(query) ||
         (note.content && note.content.toLowerCase().includes(query)) ||
+        (note.markdown && note.markdown.toLowerCase().includes(query)) ||
         (note.rawCode && note.rawCode.toLowerCase().includes(query)) ||
         (note.grid && Object.values(note.grid.cells).some(cell => (cell.value || '').toLowerCase().includes(query)));
       const matchFolder = state.activeFolder === 'all' || (state.activeFolder === 'unfiled' ? !note.folderId : note.folderId === state.activeFolder);
@@ -480,7 +535,9 @@
 
       // Limpiar preview
       let previewText = '';
-      if (note.type === 'code') {
+      if (note.type === 'markdown') {
+        previewText = (note.markdown || '').trim().slice(0, 60);
+      } else if (note.type === 'code') {
         previewText = (note.rawCode || '').trim().slice(0, 60);
       } else if (note.type === 'grid') {
         previewText = Object.values(note.grid?.cells || {}).map(cell => cell.value || '').filter(Boolean).join(' · ').slice(0, 60) || 'Hoja de cálculo vacía';
@@ -498,7 +555,7 @@
       item.innerHTML = `
         <div class="note-item-header">
           <span class="note-item-title">${escapeHtml(note.title)}</span>
-          <span class="note-item-type">${note.type === 'code' ? (note.language || 'code') : note.type === 'grid' ? 'grid' : 'doc'}</span>
+          <span class="note-item-type">${note.type === 'code' ? (note.language || 'code') : note.type === 'grid' ? 'grid' : note.type === 'markdown' ? 'md' : 'doc'}</span>
         </div>
         <div class="note-item-preview">${escapeHtml(previewText || 'Nota vacía...')}</div>
         <div class="note-item-footer">
@@ -515,14 +572,15 @@
   }
 
   /* ==========================================================================
-     Control de Modos: Documento (Word/Docs) vs Código (Notepad++)
+     Control de Modos: Documento (Word/Docs) vs Código (Codepad)
      ========================================================================== */
   function setMode(mode) {
     state.currentMode = mode;
+    DOM.markdownContainer.hidden = mode !== 'markdown';
     document.getElementById('gridContainer').hidden = mode !== 'grid';
-    DOM.btnNewNote.querySelector('span').textContent = mode === 'grid' ? 'Nueva hoja Grid' : 'Nueva Nota / Doc';
-    DOM.btnExport.title = mode === 'grid' ? 'Descargar hoja como CSV' : 'Descargar documento o código';
-    DOM.btnKanlaneTasks.disabled = mode === 'grid' || !has('tasks:read');
+    DOM.btnNewNote.querySelector('span').textContent = mode === 'grid' ? 'Nueva hoja Grid' : mode === 'markdown' ? 'Nueva nota Markdown' : mode === 'code' ? 'Nuevo archivo Codepad' : 'Nueva Nota / Doc';
+    DOM.btnExport.title = mode === 'grid' ? 'Descargar hoja como CSV' : mode === 'markdown' ? 'Descargar nota como Markdown (.md)' : 'Descargar documento o código';
+    DOM.btnKanlaneTasks.disabled = ['grid', 'markdown'].includes(mode) || !has('tasks:read');
 
     DOM.modeBtns.forEach(btn => {
       btn.classList.toggle('active', btn.dataset.mode === mode);
@@ -540,7 +598,12 @@
       DOM.codeContainer.style.display = 'flex';
 
       updateLineNumbers();
-      DOM.statusMode.textContent = `Modo: Notepad++ [${DOM.codeLangSelect.value.toUpperCase()}]`;
+      DOM.statusMode.textContent = `Modo: Codepad [${DOM.codeLangSelect.value.toUpperCase()}]`;
+    } else if (mode === 'markdown') {
+      DOM.docToolbar.style.display = 'none';
+      DOM.docViewport.style.display = 'none';
+      DOM.codeContainer.style.display = 'none';
+      DOM.statusMode.textContent = 'Modo: Markdown';
     } else if (mode === 'grid') {
       DOM.docToolbar.style.display = 'none';
       DOM.docViewport.style.display = 'none';
@@ -650,7 +713,7 @@
   }
 
   /* ==========================================================================
-     Herramientas del Modo Notepad++ (Prettify, Formateo, Líneas)
+     Herramientas del Modo Codepad (Prettify, Formateo, Líneas)
      ========================================================================== */
   function formatCurrentCode() {
     const code = DOM.codeTextarea.value;
@@ -772,7 +835,11 @@
     let filename = note.title;
     let mimeType = 'text/plain';
 
-    if (note.type === 'grid') {
+    if (note.type === 'markdown') {
+      content = note.markdown || '';
+      if (!/\.(md|markdown)$/i.test(filename)) filename += '.md';
+      mimeType = 'text/markdown;charset=utf-8';
+    } else if (note.type === 'grid') {
       content = KanPadGrid.toCSV(note.grid);
       if (!filename.toLowerCase().endsWith('.csv')) filename += '.csv';
       mimeType = 'text/csv;charset=utf-8';
@@ -817,6 +884,9 @@
       DOM.statusWords.textContent = `${state.notes.length} notas`;
     } else if (state.currentMode === 'grid' && grid) {
       DOM.statusWords.textContent = `${grid.data.rows} filas × ${grid.data.cols} columnas`;
+    } else if (state.currentMode === 'markdown') {
+      text = DOM.markdownSource.value;
+      DOM.statusWords.textContent = `${text.trim() ? text.trim().split(/\s+/).length : 0} palabras | ${text.length} caracteres`;
     } else if (state.currentMode === 'code') {
       text = DOM.codeTextarea.value;
       const lines = text.split('\n').length;
@@ -876,7 +946,66 @@
   /* ==========================================================================
      Event Listeners
      ========================================================================== */
+  function renderMarkdown() {
+    clearTimeout(markdownRenderTimer);
+    const source = DOM.markdownSource.value;
+    DOM.markdownPreview.innerHTML = source.trim() ? KanPadMarkdown.render(source) : '<p class="markdown-empty">Pega o escribe Markdown para verlo con formato.</p>';
+    document.getElementById('markdownDetected').textContent = KanPadMarkdown.detect(source) ? '✓ Markdown detectado · Vista previa automática' : 'Markdown · Vista previa automática';
+  }
+
   function setupEventListeners() {
+    // El clic y la activación por teclado dan feedback incluso en controles dinámicos.
+    document.addEventListener('click', event => {
+      const button = event.target.closest('button');
+      if (!button || button.disabled) return;
+      button.classList.remove('button-feedback');
+      void button.offsetWidth;
+      button.classList.add('button-feedback');
+      setTimeout(() => button.classList.remove('button-feedback'), 450);
+    }, true);
+    document.addEventListener('keydown', event => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's' && state.ready) {
+        event.preventDefault(); saveNotes();
+      }
+    });
+    DOM.markdownSource.addEventListener('input', () => {
+      clearTimeout(markdownRenderTimer);
+      markdownRenderTimer = setTimeout(renderMarkdown, 120);
+      triggerAutosave(); updateStats();
+    });
+    document.querySelectorAll('[data-markdown-view]').forEach(button => {
+      button.onclick = () => {
+        document.getElementById('markdownLayout').dataset.view = button.dataset.markdownView;
+        document.querySelectorAll('[data-markdown-view]').forEach(b => b.setAttribute('aria-pressed', String(b === button)));
+        renderMarkdown();
+      };
+    });
+    document.getElementById('btnCopyMarkdown').onclick = () => KanPadDialogs.copy(DOM.markdownSource.value)
+      .then(() => showToast('Markdown copiado', 'success')).catch(error => showToast(error.message, 'error'));
+    const markdownImport = document.getElementById('markdownImport');
+    document.getElementById('btnImportMarkdown').onclick = () => markdownImport.click();
+    markdownImport.onchange = async () => {
+      const file = markdownImport.files[0], noteId = state.currentNoteId, generation = projectGeneration;
+      markdownImport.value = '';
+      if (!file) return;
+      try {
+        const source = await file.text();
+        if (generation !== projectGeneration || noteId !== state.currentNoteId) return;
+        if (DOM.markdownSource.value.trim() && !await KanPadDialogs.confirm('¿Reemplazar el Markdown actual por el archivo seleccionado?', 'Abrir Markdown', 'Reemplazar')) return;
+        if (generation !== projectGeneration || noteId !== state.currentNoteId) return;
+        DOM.markdownSource.value = source;
+        DOM.noteTitleInput.value = file.name;
+        renderMarkdown(); triggerAutosave(); updateStats();
+      } catch (error) { showToast('No se pudo abrir el archivo: ' + error.message, 'error'); }
+    };
+    // Al pegar Markdown en Docs, insertar su representación enriquecida en el cursor.
+    DOM.docSheet.addEventListener('paste', event => {
+      const source = event.clipboardData?.getData('text/plain');
+      if (!source || !KanPadMarkdown.detect(source)) return;
+      event.preventDefault(); rememberDocSelection();
+      insertMarkdownInDoc(source);
+      showToast('Markdown detectado y aplicado', 'success');
+    });
     document.getElementById('btnHome').onclick = showHome;
     document.getElementById('btnNewFolder').onclick = () => manage('createFolder');
     document.querySelectorAll('[data-create]').forEach(btn => { btn.onclick = () => createNewNote(btn.dataset.create); });
@@ -981,7 +1110,7 @@
     // Selector de lenguaje en modo código
     DOM.codeLangSelect.addEventListener('change', () => {
       const lang = DOM.codeLangSelect.value;
-      DOM.statusMode.textContent = `Modo: Notepad++ [${lang.toUpperCase()}]`;
+      DOM.statusMode.textContent = `Modo: Codepad [${lang.toUpperCase()}]`;
       triggerAutosave();
     });
 

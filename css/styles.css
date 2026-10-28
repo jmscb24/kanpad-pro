@@ -514,6 +514,8 @@ html, body {
   padding: 24px;
   display: flex;
   justify-content: center;
+  align-items: flex-start;
+  min-height: 0;
 }
 
 .doc-sheet {
@@ -529,6 +531,11 @@ html, body {
   font-size: 14px;
   line-height: 1.7;
   color: var(--ink);
+  flex-shrink: 0;
+  min-width: 0;
+  height: auto;
+  display: flow-root;
+  overflow-wrap: anywhere;
 }
 
 .doc-sheet:focus {
@@ -560,7 +567,13 @@ html, body {
   background: var(--accent-soft);
   border: 1px solid color-mix(in srgb, var(--accent-solid) 20%, transparent);
   color: var(--ink);
+  height: auto;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
+
+.doc-sheet .callout > * { min-width: 0; }
+.doc-sheet mark { padding: .08em .15em; box-decoration-break: clone; -webkit-box-decoration-break: clone; }
 
 .doc-sheet .callout.callout-warning {
   background: rgba(245, 158, 11, 0.1);
@@ -1100,4 +1113,68 @@ html.wh-embedded .kanpad-sidebar { background: var(--surface); }
   .note-title-input { width: 130px; min-width: 60px; }
   .doc-viewport { padding: 14px; }
   .doc-sheet { padding: 22px 18px; }
+}
+
+/* Feedback visible de ratón y teclado, también con movimiento reducido. */
+button:not(:disabled):active { transform: translateY(1px); filter: brightness(.88); }
+button.button-feedback { box-shadow: inset 0 0 0 2px var(--accent-solid), 0 0 0 3px var(--accent-soft); }
+button:disabled { cursor: wait; }
+#btnSave { min-width: 100px; }
+#btnSave[data-save-state="saving"] { opacity: 1; background: var(--surface-2); color: var(--ink); border-color: var(--warning); }
+#btnSave[data-save-state="saving"] svg { animation: pulse .65s infinite alternate; }
+#btnSave[data-save-state="saved"] { background: var(--success); border-color: var(--success); color: #fff; }
+#btnSave[data-save-state="error"] { background: var(--danger-bg); border-color: var(--danger); color: var(--danger); }
+.status-badge { min-width: 0; }
+#statusSaveMsg { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sidebar-filter-tabs { flex-wrap: wrap; }
+.filter-tab { min-width: 34px; }
+.home-create { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.mode-segmented-control { max-width: 100%; overflow-x: auto; }
+.mode-btn { flex-shrink: 0; }
+
+/* Markdown: original editable y presentación independiente. */
+.markdown-container { display: flex; flex: 1; flex-direction: column; min-height: 0; min-width: 0; background: var(--surface); }
+.is-home #markdownContainer { display: none !important; }
+.markdown-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 8px 12px; border-bottom: 1px solid var(--line); }
+#markdownDetected { font-size: 11px; color: var(--ink-soft); margin-right: auto; }
+.markdown-view-switch { display: flex; gap: 3px; }
+.markdown-view-switch [aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent-solid); color: var(--ink); }
+.markdown-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); flex: 1; min-height: 0; }
+.markdown-source-pane, .markdown-preview-pane { display: flex; flex-direction: column; min-width: 0; min-height: 0; margin: 0; overflow: hidden; }
+.markdown-source-pane { border-right: 1px solid var(--line); }
+.markdown-pane-title { flex-shrink: 0; font-size: 10px; font-weight: 600; letter-spacing: .08em; color: var(--ink-faint); padding: 8px 16px; border-bottom: 1px solid var(--line); }
+#markdownSource { flex: 1; width: 100%; min-height: 0; padding: 20px; border: 0; resize: none; background: var(--bg); color: var(--ink); font: 13px/1.7 var(--mono); tab-size: 2; }
+.markdown-preview { overflow: auto; flex: 1; padding: 24px clamp(18px, 3vw, 40px); font-size: 15px; line-height: 1.75; overflow-wrap: anywhere; }
+.markdown-preview > :first-child { margin-top: 0; }
+.markdown-preview h1, .markdown-preview h2 { border-bottom: 1px solid var(--line); padding-bottom: .3em; line-height: 1.3; }
+.markdown-preview h1 { font-size: 2em; }
+.markdown-preview h2 { font-size: 1.5em; }
+.markdown-preview h3 { font-size: 1.25em; }
+.markdown-preview h4, .markdown-preview h5, .markdown-preview h6 { font-size: 1em; }
+.markdown-preview p, .markdown-preview ul, .markdown-preview ol, .markdown-preview blockquote { margin: 0 0 1em; }
+.markdown-preview li > p { margin-bottom: .35em; }
+.markdown-preview blockquote { border-left: 3px solid var(--accent-solid); padding: .5em 1em; color: var(--ink-soft); background: var(--surface-2); }
+.markdown-preview blockquote > :last-child { margin-bottom: 0; }
+.markdown-preview pre { background: var(--surface-2); padding: 16px; border: 1px solid var(--line); border-radius: var(--r-md); overflow: auto; line-height: 1.6; }
+.markdown-preview code { font: .9em var(--mono); background: var(--surface-2); padding: .12em .3em; border-radius: var(--r-sm); }
+.markdown-preview pre code { padding: 0; background: transparent; white-space: pre; }
+.markdown-preview a { color: var(--accent-solid); text-decoration: underline; }
+.markdown-preview img { max-width: 100%; height: auto; }
+.markdown-preview table { display: block; overflow-x: auto; border-collapse: collapse; max-width: 100%; margin-bottom: 1em; }
+.markdown-preview th, .markdown-preview td { border: 1px solid var(--line-strong); padding: 8px 12px; }
+.markdown-preview th { background: var(--surface-2); }
+.markdown-preview hr { border: 0; border-top: 1px solid var(--line-strong); margin: 24px 0; }
+.markdown-preview input[type="checkbox"] { accent-color: var(--accent-solid); }
+.markdown-empty { color: var(--ink-faint); }
+.markdown-layout[data-view="source"], .markdown-layout[data-view="preview"] { grid-template-columns: minmax(0, 1fr); }
+.markdown-layout[data-view="source"] .markdown-preview-pane, .markdown-layout[data-view="preview"] .markdown-source-pane { display: none; }
+@media (max-width: 700px) {
+  .home-create { grid-template-columns: 1fr; }
+  .markdown-layout[data-view="split"] { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(120px, 1fr) minmax(140px, 1fr); }
+  .markdown-source-pane { border-right: 0; border-bottom: 1px solid var(--line); }
+  #markdownDetected { width: 100%; }
+}
+@media (max-width: 600px) {
+  .kanpad-header-right #btnSave span { display: inline; }
+  #btnSave { min-width: 88px; }
 }

@@ -1,8 +1,8 @@
 {
   "id": "com.yalerooo.kanpad-pro",
   "name": "KanPad Pro",
-  "version": "1.3.0",
-  "description": "Notas, documentos, código y hojas Grid organizados en carpetas del proyecto. Sigue la apariencia de Kanlane.",
+  "version": "1.4.0",
+  "description": "Notas, documentos, Codepad, Markdown y hojas Grid organizados en carpetas del proyecto. Sigue la apariencia de Kanlane.",
   "icon": "book",
   "entry": "index.html",
   "permissions": [

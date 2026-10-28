@@ -89,6 +89,15 @@ const url = process.env.GRID_TEST_URL || 'http://127.0.0.1:8080';
     await f.locator('#statusSaveMsg').filter({ hasText: 'Sin guardar' }).waitFor();
     assert.ok(!(await f.locator('#statusSaveMsg').innerText()).includes('local'));
     await page.evaluate(() => { failWrites = false; }); await f.locator('#btnSave').click(); await saved(); await home();
+    // El cuarto editor usa el mismo almacenamiento por proyecto en el sandbox real.
+    await f.locator('[data-create="markdown"]').click();
+    await f.locator('#noteTitleInput').fill('Markdown integrado');
+    await f.locator('#markdownSource').fill('# Proyecto A\n\n**Markdown persistente**');
+    await f.locator('#markdownPreview strong').waitFor(); await home();
+    await page.evaluate(() => reopen()); f = plugin();
+    await f.getByRole('button', { name: 'Abrir Markdown integrado', exact: true }).click();
+    assert.equal(await f.locator('#markdownSource').inputValue(), '# Proyecto A\n\n**Markdown persistente**');
+    assert.equal(await f.locator('#markdownPreview strong').innerText(), 'Markdown persistente'); await home();
     // La biblioteca puede superar 100 KB sin sobrepasar 100 KB en ninguna clave.
     await f.getByRole('button', { name: 'Abrir Pendiente', exact: true }).click();
     await f.locator('#docSheet').fill('contenido guardado '.repeat(7000)); await f.locator('#btnSave').click(); await saved();

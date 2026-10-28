@@ -1,7 +1,7 @@
 /* Inicio: presentación de notas y carpetas. Los datos los administra app.js. */
 (function () {
   'use strict';
-  const types = { doc: ['▤', 'Documento'], code: ['</>', 'Código'], grid: ['▦', 'Grid'] };
+  const types = { doc: ['▤', 'Documento'], code: ['</>', 'Codepad'], grid: ['▦', 'Grid'], markdown: ['M↓', 'Markdown'] };
   function node(tag, className, text) {
     const el = document.createElement(tag); if (className) el.className = className; if (text !== undefined) el.textContent = text; return el;
   }
@@ -10,6 +10,7 @@
   }
   function preview(note) {
     if (note.type === 'grid') return Object.values(note.grid?.cells || {}).map(c => c.value || '').filter(Boolean).join(' · ').slice(0, 150) || 'Hoja de cálculo vacía';
+    if (note.type === 'markdown') return (note.markdown || '').slice(0, 150) || 'Markdown vacío';
     if (note.type === 'code') return (note.rawCode || '').slice(0, 150) || 'Archivo de código vacío';
     const div = document.createElement('div'); div.innerHTML = (note.content || '').replace(/<\/(p|div|h[1-6]|tr|td|th|li)>/gi, '$& '); return (div.textContent || '').trim().slice(0, 150) || 'Documento vacío';
   }

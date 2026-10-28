@@ -1,16 +1,19 @@
 # KanPad Pro para Kanlane
 
-Notas del proyecto organizadas en carpetas, con tres editores: **Docs**, **Código** y **Grid**.
+Notas del proyecto organizadas en carpetas, con cuatro editores: **Docs**, **Codepad**, **Grid** y **Markdown**.
 
 ## Uso
 
 Al abrir el plugin aparece **Inicio**. Desde ahí puedes crear carpetas y notas, buscar, filtrar, ordenar, renombrar, duplicar, mover y eliminar. Cada nota mantiene su tipo de editor. Eliminar una carpeta conserva las notas en **Sin carpeta**.
 
 - **Docs:** contenido enriquecido, tablas con inserción en el cursor, listas, enlaces, bloques de código y notas destacadas.
-- **Código:** editor monoespaciado, números de línea, selector de lenguaje, formateo y copia.
+- **Codepad:** editor monoespaciado, números de línea, selector de lenguaje, formateo y copia.
+- **Markdown:** editor y vista previa en paralelo, vistas individuales, detección automática, títulos, listas y tareas, tablas, citas, enlaces y bloques de código. Permite abrir `.md`/`.markdown`/`.txt`, copiar el original y exportar `.md`. El original se guarda junto a las demás notas del proyecto. Al pegar Markdown reconocible en Docs se aplica su formato en el cursor. La presentación se sanea antes de insertarla.
 - **Grid:** celdas editables, fórmulas y referencias, selección de rangos, formato, deshacer/rehacer y CSV/TSV. Empieza con 50 filas y 26 columnas, ampliables hasta 1.000 × 100. Funciones: SUM/SUMA, AVERAGE/PROMEDIO, MIN, MAX y COUNT/CONTAR; operaciones `+ - * / ^` y paréntesis.
 
-El botón **Inicio** guarda el editor y vuelve a las carpetas. **Guardar** permite comprobar el resultado del guardado; el autosave se activa tras una pausa de escritura. El estado inferior distingue «Guardando», «Guardado en Kanlane», «Guardado localmente» y «Sin guardar». Los errores no se presentan como guardados correctos.
+El botón **Inicio** guarda el editor y vuelve a las carpetas. **Guardar** muestra «Guardando…», «✓ Guardado» o «Reintentar» según el resultado real y bloquea los clics repetidos durante la escritura. Los botones dan feedback al pulsar con ratón o teclado. También puedes guardar con **Ctrl+S / Cmd+S**; el autosave se activa tras una pausa de escritura. El estado inferior distingue «Guardando», «Guardado en Kanlane», «Guardado localmente» y «Sin guardar». Los errores no se presentan como guardados correctos.
+
+El marco de Docs crece con el texto y las cajas destacadas se adaptan al contenido, incluso con títulos grandes y textos largos.
 
 ## Integración con Kanlane
 
@@ -35,7 +38,7 @@ Se mantienen los límites totales de Kanlane: 800 KB por plugin y proyecto, o 60
 
 ### Apariencia
 
-El SDK aplica y actualiza las variables que exporta Kanlane: colores, acento, superficies, bordes, fuente y radios. KanPad las utiliza también en Docs, Código, Grid y diálogos. El fondo exterior es transparente para que se vea el fondo de Kanlane y los cambios de Apariencia; el editor de código sigue el tema elegido.
+El SDK aplica y actualiza las variables que exporta Kanlane: colores, acento, superficies, bordes, fuente y radios. KanPad las utiliza también en Docs, Codepad, Grid, Markdown y diálogos. El fondo exterior es transparente para que se vea el fondo de Kanlane y los cambios de Apariencia; el editor de código sigue el tema elegido.
 
 El contrato actual del SDK no transmite los atributos de densidad, tamaño de texto o movimiento de Apariencia. KanPad sigue las variables disponibles y la preferencia de movimiento reducido del navegador; no intenta leer el DOM de la página anfitriona.
 
@@ -66,6 +69,7 @@ Pruebas de navegador con Playwright y Chromium, con el proyecto servido en el pu
 ```bash
 node tests/home.browser.cjs
 node tests/grid.browser.cjs
+node tests/markdown.browser.cjs
 ```
 
 Integración con el código de Kanlane:
@@ -75,7 +79,7 @@ git clone https://github.com/yalerooo/Kanlane.git ../kanlane-reference
 node tests/kanlane.browser.cjs
 ```
 
-La última prueba carga el SDK, `PluginFrame`, `PluginsController`, `PluginModel`, los estilos y el plugin Apariencia del checkout indicado. Usa el sandbox real, sin `allow-same-origin` ni `allow-modals`. Sustituye solo el backend de datos por un almacenamiento de prueba; no necesita una cuenta Firebase. Verifica conexión y permisos, Inicio, carpetas, los tres editores, tablas, CSV, guardado y reapertura, Apariencia, bibliotecas de más de 100 KB, separación por proyecto, segundo plano y sondeo de instalación. La sincronización con una cuenta real de Kanlane requiere una prueba posterior en esa cuenta.
+La última prueba carga el SDK, `PluginFrame`, `PluginsController`, `PluginModel`, los estilos y el plugin Apariencia del checkout indicado. Usa el sandbox real, sin `allow-same-origin` ni `allow-modals`. Sustituye solo el backend de datos por un almacenamiento de prueba; no necesita una cuenta Firebase. Verifica conexión y permisos, Inicio, carpetas, los cuatro editores, tablas, CSV, guardado y reapertura, Apariencia, bibliotecas de más de 100 KB, separación por proyecto, segundo plano y sondeo de instalación. La sincronización con una cuenta real de Kanlane requiere una prueba posterior en esa cuenta.
 
 Variables opcionales: `GRID_TEST_URL`, `GRID_CHROMIUM_PATH` y `KANLANE_SOURCE`.
 
@@ -83,6 +87,8 @@ Variables opcionales: `GRID_TEST_URL`, `GRID_CHROMIUM_PATH` y `KANLANE_SOURCE`.
 
 - `index.html`, `css/styles.css`: interfaz y estilos.
 - `js/app.js`: panel, SDK, editores y ciclo de vida.
+- `js/markdown.js`: detección y presentación segura de Markdown.
+- `js/vendor/`: Marked 18.1.2 (MIT) y DOMPurify 3.4.17 (Apache-2.0 o MPL-2.0), con sus licencias, servidos desde el plugin. No requieren CDN ni compilación.
 - `js/home.js`: Inicio y carpetas.
 - `js/grid.js`: hoja de cálculo, fórmulas y CSV.
 - `js/storage.js`: almacenamiento local o por proyecto, migración y fragmentos.
