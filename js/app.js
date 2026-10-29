@@ -847,12 +847,34 @@
       content = note.rawCode || '';
       const extMap = {
         javascript: 'js',
+        typescript: 'ts',
+        php: 'php',
+        perl: 'pl',
+        bash: 'sh',
+        powershell: 'ps1',
+        java: 'java',
+        csharp: 'cs',
         python: 'py',
+        ruby: 'rb',
+        go: 'go',
+        rust: 'rs',
+        kotlin: 'kt',
+        swift: 'swift',
+        dart: 'dart',
+        lua: 'lua',
+        r: 'r',
+        c: 'c',
+        cpp: 'cpp',
         html: 'html',
+        xml: 'xml',
         css: 'css',
+        scss: 'scss',
         sql: 'sql',
         json: 'json',
-        markdown: 'md'
+        yaml: 'yaml',
+        toml: 'toml',
+        markdown: 'md',
+        plaintext: 'txt'
       };
       const ext = extMap[note.language] || 'txt';
       if (!filename.includes('.')) filename += `.${ext}`;
