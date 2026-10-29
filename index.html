@@ -116,11 +116,14 @@
         </section>
         <!-- Barra de herramientas para Modo Documento (Word/Docs) -->
         <div id="docToolbar" class="doc-toolbar">
-          <select class="tb-select" onchange="KanPad.execDocCmd('formatBlock', this.value); this.value='p';">
-            <option value="p">Normal (Párrafo)</option>
-            <option value="h1">Título Grande (H1)</option>
-            <option value="h2">Sección (H2)</option>
-            <option value="h3">Subsección (H3)</option>
+          <select id="docTextStyle" class="tb-select" aria-label="Estilo de texto" title="Estilo de texto">
+            <option value="p">Texto normal</option>
+            <option value="h1">Título</option>
+            <option value="h2">Subtítulo</option>
+            <option value="h3">Encabezado 1</option>
+            <option value="h4">Encabezado 2</option>
+            <option value="h5">Encabezado 3</option>
+            <option value="h6">Encabezado 4</option>
             <option value="blockquote">Cita destacada</option>
           </select>
 
@@ -182,7 +185,7 @@
 
         <!-- Vista Documento (Hoja de trabajo tipo Google Docs) -->
         <div id="docViewport" class="doc-viewport">
-          <div id="docSheet" class="doc-sheet" contenteditable="true" spellcheck="true">
+          <div id="docSheet" class="doc-sheet" contenteditable="true" spellcheck="true" role="textbox" aria-label="Contenido del documento" aria-multiline="true">
             <!-- Contenido dinámico del documento -->
           </div>
         </div>

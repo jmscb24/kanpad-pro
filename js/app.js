@@ -44,6 +44,7 @@
     docViewport: document.getElementById('docViewport'),
     docSheet: document.getElementById('docSheet'),
     docToolbar: document.getElementById('docToolbar'),
+    docTextStyle: document.getElementById('docTextStyle'),
     codeContainer: document.getElementById('codeContainer'),
     codeTextarea: document.getElementById('codeTextarea'),
     codeLineNumbers: document.getElementById('codeLineNumbers'),
@@ -337,7 +338,14 @@
   function rememberDocSelection() {
     if (state.isHome || state.currentMode !== 'doc') return;
     const selection = window.getSelection();
-    if (selection && selection.rangeCount && DOM.docSheet.contains(selection.anchorNode) && DOM.docSheet.contains(selection.focusNode)) savedDocRange = selection.getRangeAt(0).cloneRange();
+    if (selection && selection.rangeCount && DOM.docSheet.contains(selection.anchorNode) && DOM.docSheet.contains(selection.focusNode)) {
+      savedDocRange = selection.getRangeAt(0).cloneRange();
+      const node = selection.anchorNode;
+      const element = node.nodeType === Node.ELEMENT_NODE ? node : node.parentElement;
+      const block = element.closest('p, h1, h2, h3, h4, h5, h6, blockquote, div, li, td, th');
+      const style = block?.tagName.toLowerCase();
+      DOM.docTextStyle.value = Array.from(DOM.docTextStyle.options).some(option => option.value === style) ? style : 'p';
+    }
   }
 
   function restoreDocSelection() {
@@ -397,7 +405,7 @@
       type: type,
       language: isCode ? 'javascript' : 'markdown',
       updatedAt: new Date().toISOString(),
-      content: isCode ? '' : '<h1>Nuevo Documento</h1><p>Escribe aquí tu contenido...</p>',
+      content: isCode ? '' : '<p><br></p>',
       rawCode: isCode ? '// Nuevo archivo de código\n' : ''
     };
 
@@ -408,9 +416,13 @@
     selectNote(newNote.id);
     saveNotes();
 
-    // Enfocar el título
-    DOM.noteTitleInput.focus();
-    DOM.noteTitleInput.select();
+    if (type === 'doc') {
+      restoreDocSelection();
+      rememberDocSelection();
+    } else {
+      DOM.noteTitleInput.focus();
+      DOM.noteTitleInput.select();
+    }
   }
 
   function selectNote(id) {
@@ -427,6 +439,7 @@
     DOM.noteTitleInput.value = note.title;
 
     savedDocRange = null;
+    DOM.docTextStyle.value = 'p';
     state.isHome = false;
     document.querySelector('.kanpad-app').classList.remove('is-home');
 
@@ -976,6 +989,8 @@
   }
 
   function setupEventListeners() {
+    document.execCommand('defaultParagraphSeparator', false, 'p');
+    DOM.docTextStyle.addEventListener('change', () => execDocCmd('formatBlock', DOM.docTextStyle.value));
     // El clic y la activación por teclado dan feedback incluso en controles dinámicos.
     document.addEventListener('click', event => {
       const button = event.target.closest('button');
@@ -1102,6 +1117,25 @@
     DOM.docSheet.addEventListener('input', () => {
       triggerAutosave();
       updateStats();
+    });
+
+    // Como en Docs, Enter al terminar un título continúa con texto normal.
+    DOM.docSheet.addEventListener('keydown', event => {
+      if (event.key !== 'Enter' || event.shiftKey || event.ctrlKey || event.metaKey || event.altKey || event.isComposing) return;
+      const selection = window.getSelection();
+      if (!selection?.rangeCount || !selection.isCollapsed) return;
+      const range = selection.getRangeAt(0);
+      const node = range.startContainer;
+      const element = node.nodeType === Node.ELEMENT_NODE ? node : node.parentElement;
+      const heading = element.closest('h1, h2, h3, h4, h5, h6');
+      if (!heading || !DOM.docSheet.contains(heading)) return;
+      const trailing = range.cloneRange();
+      trailing.setEnd(heading, heading.childNodes.length);
+      if (trailing.toString() || trailing.cloneContents().querySelector('img, input, table')) return;
+      event.preventDefault();
+      rememberDocSelection();
+      execDocCmd('insertParagraph');
+      execDocCmd('formatBlock', 'p');
     });
 
     // Editor de Código (textarea)

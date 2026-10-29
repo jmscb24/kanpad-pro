@@ -48,6 +48,15 @@
 }
 
 /* Reset y base */
+:root { color-scheme: light; }
+:root[data-theme="dark"] { color-scheme: dark; }
+
+/* Los menús nativos necesitan colores propios, también dentro del sandbox. */
+select, select option, select optgroup {
+  background-color: var(--surface);
+  color: var(--ink);
+}
+
 * {
   box-sizing: border-box;
 }
@@ -543,9 +552,14 @@ html, body {
 }
 
 /* Estilos de tipografía dentro del documento */
-.doc-sheet h1 { font-size: 26px; font-weight: 700; margin: 20px 0 10px; color: var(--ink); border-bottom: 1px solid var(--line); padding-bottom: 6px; }
-.doc-sheet h2 { font-size: 20px; font-weight: 600; margin: 16px 0 8px; color: var(--ink); }
-.doc-sheet h3 { font-size: 16px; font-weight: 600; margin: 12px 0 6px; color: var(--ink); }
+.doc-sheet :is(h1, h2, h3, h4, h5, h6) { color: var(--ink); line-height: 1.3; border: 0; padding: 0; }
+.doc-sheet h1 { font-size: 32px; font-weight: 400; margin: 20px 0 10px; }
+.doc-sheet h2 { font-size: 23px; font-weight: 400; margin: 12px 0 16px; color: var(--ink-soft); }
+.doc-sheet h3 { font-size: 20px; font-weight: 600; margin: 20px 0 8px; }
+.doc-sheet h4 { font-size: 17px; font-weight: 600; margin: 16px 0 6px; }
+.doc-sheet h5 { font-size: 15px; font-weight: 600; margin: 14px 0 6px; }
+.doc-sheet h6 { font-size: 14px; font-weight: 600; margin: 12px 0 6px; }
+.doc-sheet > :first-child { margin-top: 0; }
 .doc-sheet p { margin: 0 0 12px; color: var(--ink); }
 .doc-sheet blockquote {
   border-left: 3px solid var(--accent-solid);
@@ -1096,7 +1110,7 @@ html.wh-embedded .kanpad-sidebar { background: var(--surface); }
 .doc-code-copy-btn { color: var(--ink-soft); border-color: var(--line-strong); }
 .doc-code-copy-btn:hover, .code-tool-btn:hover { color: var(--ink); background: var(--hover); border-color: var(--line-strong); }
 .code-tool-btn.btn-glow { color: var(--accent-ink); }
-.code-lang-select option { color: var(--ink); background: var(--bg); }
+.code-lang-select option { color: var(--ink); background: var(--surface); }
 .modal-dialog { background: var(--bg); border-radius: var(--r-xl); }
 .modal-header, .modal-footer { background: var(--surface); }
 #actionModal { z-index: 1100; }
