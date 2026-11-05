@@ -243,7 +243,10 @@
 
           <div class="code-editor-layout">
             <div id="codeLineNumbers" class="code-line-numbers">1</div>
-            <textarea id="codeTextarea" class="code-textarea" spellcheck="false" placeholder="// Pega o escribe aquí tu código..."></textarea>
+            <div class="code-input-stack">
+              <pre id="codeHighlight" class="code-highlight" aria-hidden="true"><code></code></pre>
+              <textarea id="codeTextarea" class="code-textarea" aria-label="Código fuente" spellcheck="false" autocapitalize="off" autocomplete="off" wrap="off" placeholder="// Pega o escribe aquí tu código..."></textarea>
+            </div>
           </div>
         </div>
         <section id="markdownContainer" class="markdown-container" aria-label="Editor Markdown" hidden>
@@ -303,7 +306,7 @@
       <div class="statusbar-right">
         <span id="statusWords">0 palabras</span>
         <span>UTF-8</span>
-        <span>KanPad Pro v1.4</span>
+        <span>KanPad Pro v1.4.1</span>
       </div>
     </footer>
   </div>
@@ -373,6 +376,8 @@
   <!-- Scripts -->
   <script src="https://kanlane.com/plugins/sdk/workhub-plugin.js"></script>
   <script src="js/code-highlighter.js"></script>
+  <script src="js/vendor/highlight.min.js"></script>
+  <script src="js/syntax.js"></script>
   <script src="js/dialogs.js"></script>
   <script src="js/storage.js"></script>
   <script src="js/grid.js"></script>

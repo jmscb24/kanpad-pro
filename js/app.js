@@ -84,7 +84,7 @@
   let saveFeedbackTimer;
   let markdownRenderTimer;
   const MANIFEST = {
-    id: 'com.yalerooo.kanpad-pro', name: 'KanPad Pro', version: '1.4.0',
+    id: 'com.yalerooo.kanpad-pro', name: 'KanPad Pro', version: '1.4.1',
     description: 'Notas, documentos, Codepad, Markdown y hojas Grid organizados en carpetas del proyecto. Sigue la apariencia de Kanlane.',
     author: 'Javier', homepage: 'https://github.com/jmscb24/kanpad-pro', icon: 'book', color: 214,
     permissions: ['storage', 'tasks:read', 'ui:extend']
@@ -367,6 +367,7 @@
       if (last) { range.setStartAfter(last); range.collapse(true); window.getSelection().removeAllRanges(); window.getSelection().addRange(range); }
     }
     rememberDocSelection(); updateCurrentNoteFromView(); triggerAutosave(); updateStats(); renderNotesList();
+    KanPadSyntax.blocks(DOM.docSheet);
   }
 
   function insertMarkdownInDoc(source) {
@@ -391,6 +392,7 @@
     if (tail) fragment.append(tail);
     range.insertNode(fragment);
     if (last) { range.setStartAfter(last); range.collapse(true); selection.removeAllRanges(); selection.addRange(range); }
+    KanPadSyntax.blocks(DOM.docSheet);
     rememberDocSelection(); updateCurrentNoteFromView(); triggerAutosave(); updateStats(); renderNotesList();
   }
 
@@ -457,6 +459,7 @@
       setMode('grid');
     } else {
       DOM.docSheet.innerHTML = note.content || '';
+      KanPadSyntax.blocks(DOM.docSheet);
       setMode('doc');
     }
 
@@ -706,10 +709,10 @@
 
   async function insertDocCodeBlock() {
     rememberDocSelection();
-    const choice = await KanPadDialogs.prompt('Lenguaje del bloque', 'javascript', 'javascript, python, html, css, sql o json');
+    const choice = await KanPadDialogs.prompt('Lenguaje del bloque', 'javascript', 'Ej.: bash, shell, javascript, typescript, python, html, css, sql o json');
     if (choice === null) return;
-    const lang = ['javascript', 'python', 'html', 'css', 'sql', 'json'].includes(choice.toLowerCase()) ? choice.toLowerCase() : 'plaintext';
-    const sample = `// Escribe tu código ${lang} aquí...\nconsole.log("Hola desde KanPad Pro");`;
+    const lang = KanPadSyntax.language(choice.trim());
+    const sample = lang === 'bash' ? '# Escribe tu código Bash aquí...\necho "Hola desde KanPad Pro"' : lang === 'javascript' ? '// Escribe tu código aquí...\nconsole.log("Hola desde KanPad Pro");' : 'Escribe tu código aquí...';
 
     const html = `
       <div class="doc-code-block">
@@ -717,7 +720,7 @@
           <span>${lang}</span>
           <button class="doc-code-copy-btn" onclick="KanPad.copySnippet(this)">Copiar</button>
         </div>
-        <pre><code class="language-${lang}">${escapeHtml(sample)}</code></pre>
+        <pre><code class="language-${lang} hljs">${KanPadSyntax.highlight(sample, lang)}</code></pre>
       </div>
       <p><br></p>
     `;
@@ -748,6 +751,14 @@
       gutterHTML += `<div>${i}</div>`;
     }
     DOM.codeLineNumbers.innerHTML = gutterHTML;
+    updateCodeHighlight();
+  }
+
+  function updateCodeHighlight() {
+    const overlay = document.getElementById('codeHighlight');
+    overlay.querySelector('code').innerHTML = KanPadSyntax.highlight(DOM.codeTextarea.value, DOM.codeLangSelect.value) + '\n';
+    overlay.scrollTop = DOM.codeTextarea.scrollTop;
+    overlay.scrollLeft = DOM.codeTextarea.scrollLeft;
   }
 
   async function insertLink() {
@@ -985,6 +996,7 @@
     clearTimeout(markdownRenderTimer);
     const source = DOM.markdownSource.value;
     DOM.markdownPreview.innerHTML = source.trim() ? KanPadMarkdown.render(source) : '<p class="markdown-empty">Pega o escribe Markdown para verlo con formato.</p>';
+    KanPadSyntax.blocks(DOM.markdownPreview);
     document.getElementById('markdownDetected').textContent = KanPadMarkdown.detect(source) ? '✓ Markdown detectado · Vista previa automática' : 'Markdown · Vista previa automática';
   }
 
@@ -1118,6 +1130,10 @@
       triggerAutosave();
       updateStats();
     });
+    DOM.docSheet.addEventListener('focusout', () => {
+      const range = KanPadSyntax.blocks(DOM.docSheet);
+      if (range) savedDocRange = range;
+    });
 
     // Como en Docs, Enter al terminar un título continúa con texto normal.
     DOM.docSheet.addEventListener('keydown', event => {
@@ -1148,6 +1164,9 @@
     // Sincronizar scroll entre gutter de números y textarea
     DOM.codeTextarea.addEventListener('scroll', () => {
       DOM.codeLineNumbers.scrollTop = DOM.codeTextarea.scrollTop;
+      const overlay = document.getElementById('codeHighlight');
+      overlay.scrollTop = DOM.codeTextarea.scrollTop;
+      overlay.scrollLeft = DOM.codeTextarea.scrollLeft;
     });
 
     // Soporte para tecla Tab en el textarea
@@ -1167,6 +1186,7 @@
     DOM.codeLangSelect.addEventListener('change', () => {
       const lang = DOM.codeLangSelect.value;
       DOM.statusMode.textContent = `Modo: Codepad [${lang.toUpperCase()}]`;
+      updateCodeHighlight();
       triggerAutosave();
     });
 

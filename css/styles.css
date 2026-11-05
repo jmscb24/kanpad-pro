@@ -1192,3 +1192,53 @@ button:disabled { cursor: wait; }
   .kanpad-header-right #btnSave span { display: inline; }
   #btnSave { min-width: 88px; }
 }
+
+/* Biblioteca: grupos plegables y notas sueltas en la raíz. */
+.home-folder, .home-root { grid-column: 1 / -1; min-width: 0; }
+.home-folder { border: 1px solid var(--line); border-radius: var(--r-lg); background: var(--surface); }
+.home-folder-heading { display: flex; align-items: center; gap: 10px; padding: 12px 16px; cursor: pointer; border-radius: inherit; }
+.home-folder-heading::before { content: '›'; color: var(--ink-faint); font-size: 20px; line-height: 1; }
+.home-folder[open] > summary::before { transform: rotate(90deg); }
+.home-folder-heading::-webkit-details-marker { display: none; }
+.home-folder-heading:hover { background: var(--hover); }
+.home-folder-heading .folder-name { font-weight: 600; }
+.home-folder-icon { font-size: 20px; }
+.home-folder-contents { padding: 0 12px 12px; border-top: 1px solid var(--line); }
+.home-folder-toolbar { display: flex; justify-content: flex-end; padding: 8px 0; }
+.home-folder-notes, .home-root > .home-notes { padding-bottom: 0; gap: 12px; }
+.home-root-heading { font-size: 13px; color: var(--ink-soft); margin: 6px 0 12px; }
+.home-note-top { margin-bottom: 10px; }
+.home-note-open { padding: 14px 14px 8px; }
+.home-note-footer { padding: 8px 14px 10px; }
+
+/* Paleta inspirada en VS Code Light+/Dark+. */
+:root { --syntax-bg: #fff; --syntax-fg: #24292e; --syntax-comment: #008000; --syntax-keyword: #0000ff; --syntax-string: #a31515; --syntax-number: #098658; --syntax-function: #795e26; --syntax-type: #267f99; --syntax-variable: #001080; }
+:root[data-theme="dark"] { --syntax-bg: #1e1e1e; --syntax-fg: #d4d4d4; --syntax-comment: #6a9955; --syntax-keyword: #c586c0; --syntax-string: #ce9178; --syntax-number: #b5cea8; --syntax-function: #dcdcaa; --syntax-type: #4ec9b0; --syntax-variable: #9cdcfe; }
+.hljs { color: var(--syntax-fg); }
+.hljs-comment, .hljs-quote { color: var(--syntax-comment); }
+.hljs-keyword, .hljs-selector-tag, .hljs-literal, .hljs-meta { color: var(--syntax-keyword); }
+.hljs-string, .hljs-regexp, .hljs-doctag { color: var(--syntax-string); }
+.hljs-number { color: var(--syntax-number); }
+.hljs-title, .hljs-built_in, .hljs-section { color: var(--syntax-function); }
+.hljs-type, .hljs-title.class_, .hljs-attribute { color: var(--syntax-type); }
+.hljs-variable, .hljs-attr, .hljs-params, .hljs-property { color: var(--syntax-variable); }
+.hljs-subst { color: var(--syntax-fg); }
+.hljs-emphasis { font-style: italic; }
+.hljs-strong { font-weight: bold; }
+.doc-sheet pre:has(> code.hljs), .markdown-preview pre:has(> code.hljs) { background: var(--syntax-bg); color: var(--syntax-fg); }
+.code-input-stack { position: relative; flex: 1; min-width: 0; min-height: 0; background: var(--syntax-bg); }
+.code-input-stack .code-textarea, .code-highlight {
+  position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; border: 0; border-radius: 0;
+  padding: 14px 16px; font: 13px/22px var(--mono); letter-spacing: normal; tab-size: 2; white-space: pre;
+  overflow: auto; text-align: left; font-variant-ligatures: none;
+}
+.code-highlight { pointer-events: none; color: var(--syntax-fg); background: transparent; scrollbar-gutter: stable; }
+.code-highlight code { font: inherit; }
+.code-highlight span { font-style: normal; font-weight: normal; }
+.code-input-stack .code-textarea { background: transparent; color: transparent; caret-color: var(--syntax-fg); -webkit-text-fill-color: transparent; scrollbar-gutter: stable; }
+.code-input-stack .code-textarea::placeholder { color: var(--ink-faint); -webkit-text-fill-color: var(--ink-faint); }
+.code-input-stack .code-textarea::selection { background: Highlight; color: HighlightText; -webkit-text-fill-color: HighlightText; }
+@media (forced-colors: active) {
+  .code-highlight { display: none; }
+  .code-input-stack .code-textarea { color: CanvasText; -webkit-text-fill-color: CanvasText; caret-color: CanvasText; }
+}

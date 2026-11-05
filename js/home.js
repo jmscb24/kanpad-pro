@@ -2,6 +2,7 @@
 (function () {
   'use strict';
   const types = { doc: ['▤', 'Documento'], code: ['</>', 'Codepad'], grid: ['▦', 'Grid'], markdown: ['M↓', 'Markdown'] };
+  const collapsedFolders = new Set();
   function node(tag, className, text) {
     const el = document.createElement(tag); if (className) el.className = className; if (text !== undefined) el.textContent = text; return el;
   }
@@ -40,10 +41,10 @@
       document.getElementById('homeCount').textContent = `${visibleNotes.length} nota${visibleNotes.length === 1 ? '' : 's'} · ${folders.length} carpeta${folders.length === 1 ? '' : 's'}`;
       const list = document.getElementById('homeNotes'); list.replaceChildren();
       const ordered = [...visibleNotes].sort((a, b) => sort === 'title' ? a.title.localeCompare(b.title, 'es') : sort === 'type' ? a.type.localeCompare(b.type) || a.title.localeCompare(b.title, 'es') : b.updatedAt.localeCompare(a.updatedAt));
-      if (!ordered.length) {
+      if (!ordered.length && (activeFolder !== 'all' || !folders.length || notes.length)) {
         const empty = node('div', 'home-empty'); empty.append(node('span', 'home-empty-icon', '▤'), node('h3', '', 'No hay notas aquí'), node('p', 'home-muted', 'Crea una nota arriba o cambia la búsqueda y los filtros.')); list.append(empty);
       }
-      ordered.forEach(note => {
+      function noteCard(note) {
         const card = node('article', 'home-note'); card.dataset.noteId = note.id;
         const [icon, type] = types[note.type] || types.doc;
         const open = button('', 'Abrir ' + note.title, () => actions.open(note.id), 'home-note-open');
@@ -56,8 +57,46 @@
         card.append(footer);
         const controls = node('div', 'home-note-actions');
         controls.append(button('Renombrar', 'Renombrar ' + note.title, () => actions.rename(note)), button('Mover', 'Mover ' + note.title, () => actions.move(note)), button('Duplicar', 'Duplicar ' + note.title, () => actions.duplicate(note)), button('Eliminar', 'Eliminar ' + note.title, () => actions.delete(note.id), 'app-btn danger-action'));
-        card.append(controls); list.append(card);
+        card.append(controls); return card;
+      }
+      if (activeFolder !== 'all') {
+        ordered.forEach(note => list.append(noteCard(note)));
+        return;
+      }
+      // La raíz contiene las notas sueltas y cada carpeta contiene sus propias notas.
+      // Agrupar después de filtrar conserva la búsqueda y el orden dentro de cada grupo.
+      const byFolder = new Map(folders.map(folder => [folder.id, []]));
+      const rootNotes = [];
+      ordered.forEach(note => {
+        const group = byFolder.get(note.folderId);
+        if (group) group.push(note); else rootNotes.push(note);
       });
+      folders.forEach(folder => {
+        const children = byFolder.get(folder.id);
+        if (!children.length && visibleNotes.length !== notes.length) return;
+        const section = node('details', 'home-folder'); section.dataset.folderId = folder.id;
+        section.open = !collapsedFolders.has(folder.id);
+        section.addEventListener('toggle', () => {
+          if (section.open) collapsedFolders.delete(folder.id); else collapsedFolders.add(folder.id);
+        });
+        const summary = node('summary', 'home-folder-heading');
+        const icon = node('span', 'home-folder-icon', '📁'); icon.setAttribute('aria-hidden', 'true');
+        summary.append(icon, node('span', 'folder-name', folder.name), node('span', 'folder-count', `${children.length} nota${children.length === 1 ? '' : 's'}`));
+        const contents = node('div', 'home-folder-contents');
+        const toolbar = node('div', 'home-folder-toolbar');
+        toolbar.append(button('Abrir carpeta', 'Abrir carpeta ' + folder.name, () => actions.folder(folder.id)));
+        contents.append(toolbar);
+        const grid = node('div', 'home-notes home-folder-notes');
+        children.forEach(note => grid.append(noteCard(note)));
+        if (!children.length) grid.append(node('p', 'home-muted', 'Carpeta vacía'));
+        contents.append(grid); section.append(summary, contents); list.append(section);
+      });
+      if (rootNotes.length) {
+        const root = node('section', 'home-root'); root.setAttribute('aria-label', 'Notas sin carpeta');
+        root.append(node('h3', 'home-root-heading', 'Notas sin carpeta'));
+        const grid = node('div', 'home-notes'); rootNotes.forEach(note => grid.append(noteCard(note)));
+        root.append(grid); list.append(root);
+      }
     }
   };
 })();

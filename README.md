@@ -6,6 +6,16 @@ Notas del proyecto organizadas en carpetas, con cuatro editores: **Docs**, **Cod
 
 Al abrir el plugin aparece **Inicio**. Desde ahí puedes crear carpetas y notas, buscar, filtrar, ordenar, renombrar, duplicar, mover y eliminar. Cada nota mantiene su tipo de editor. Eliminar una carpeta conserva las notas en **Sin carpeta**.
 
+En **Todas las notas**, cada carpeta tiene una sección con icono, contador y cuadrícula de notas. Puedes plegarla pulsando su cabecera o entrar con **Abrir carpeta**. Las notas sin carpeta aparecen juntas en la raíz, debajo de las carpetas. La búsqueda y los filtros se aplican antes de agrupar; el orden elegido se mantiene dentro de cada grupo. Las carpetas vacías se muestran en la biblioteca sin filtrar.
+
+### Resaltado de código
+
+Codepad, los bloques de Markdown y los bloques de Docs utilizan **Highlight.js 11.12.0**, servido localmente, con una paleta inspirada en **VS Code Light+/Dark+** que sigue `data-theme` del anfitrión. Incluye Bash y todos los lenguajes del selector; `sh`/`shell` se interpretan como Bash, HTML como XML y TOML con la gramática INI/TOML. Los bloques Markdown deben indicar el lenguaje, por ejemplo con una apertura de bloque ` ```bash ` (sin los espacios externos). Los lenguajes desconocidos y los bloques sin lenguaje se muestran como texto plano.
+
+El resaltado conserva el texto: Codepad mantiene el `textarea` editable sobre una capa visual sincronizada; Markdown conserva su original y resalta después de sanear el HTML. Docs resalta al abrir, insertar y salir del editor, sin reemplazar los nodos durante la escritura ni perder la selección. **Formatear Código** sigue siendo una acción independiente. Prettier es un formateador, no un tema ni un motor de resaltado.
+
+Para instalar estos cambios, publica juntos `index.html`, `css/styles.css`, `js/home.js`, `js/app.js`, `js/syntax.js` y los archivos `js/vendor/highlight.min.js` y `js/vendor/highlight.LICENSE`, junto al resto del plugin. No requiere instalar paquetes ni compilar. Para reconstruir la copia de Highlight.js desde su versión fijada, ejecuta `node tools/build-highlighter.cjs` con Node 18+ y conexión a Internet. El bundle ocupa aproximadamente 133 KiB y solo añade al conjunto habitual las gramáticas necesarias para el selector.
+
 - **Docs:** documento en blanco con texto normal, sin título obligatorio ni líneas decorativas. El selector de estilos permite aplicar Texto normal, Título, Subtítulo, cuatro niveles de encabezado y citas al párrafo o a la selección; muestra el estilo donde está el cursor. Incluye tablas con inserción en el cursor, listas, enlaces, bloques de código y notas destacadas.
 - **Codepad:** editor monoespaciado, números de línea, selector de lenguaje, formateo y copia. Incluye JavaScript, TypeScript, PHP, Perl, Bash/Shell, PowerShell, Java, C#, Python, Ruby, Go, Rust, Kotlin, Swift, Dart, Lua, R, C, C++, HTML, XML, CSS, SCSS, SQL, JSON, YAML, TOML, Markdown y texto plano. Guarda el lenguaje de cada nota y exporta con su extensión correspondiente. El formateo específico está disponible para JavaScript/TypeScript, JSON, HTML/XML, CSS y SQL; en los demás se aplica una limpieza básica de espacios finales.
 - **Markdown:** editor y vista previa en paralelo, vistas individuales, detección automática, títulos, listas y tareas, tablas, citas, enlaces y bloques de código. Permite abrir `.md`/`.markdown`/`.txt`, copiar el original y exportar `.md`. El original se guarda junto a las demás notas del proyecto. Al pegar Markdown reconocible en Docs se aplica su formato en el cursor. La presentación se sanea antes de insertarla.
@@ -71,6 +81,7 @@ node tests/home.browser.cjs
 node tests/docs.browser.cjs
 node tests/grid.browser.cjs
 node tests/markdown.browser.cjs
+node tests/syntax.browser.cjs
 ```
 
 Integración con el código de Kanlane:
@@ -95,4 +106,7 @@ Variables opcionales: `GRID_TEST_URL`, `GRID_CHROMIUM_PATH` y `KANLANE_SOURCE`.
 - `js/storage.js`: almacenamiento local o por proyecto, migración y fragmentos.
 - `js/dialogs.js`: diálogos compatibles con el sandbox y copia.
 - `js/code-highlighter.js`: formateo de código.
+- `js/syntax.js`: resaltado seguro, alias de lenguajes y selección en Docs.
+- `js/vendor/highlight.min.js`: Highlight.js 11.12.0 (BSD-3-Clause); licencia en `highlight.LICENSE`.
+- `tools/build-highlighter.cjs`: reconstrucción reproducible de Highlight.js y las gramáticas adicionales.
 - `manifest.json`: descripción del plugin; coincide con el manifiesto enviado por el SDK.
