@@ -48,13 +48,35 @@
 }
 
 /* Reset y base */
-:root { color-scheme: light; }
-:root[data-theme="dark"] { color-scheme: dark; }
+:root {
+  color-scheme: light;
+  --dropdown-bg: var(--surface);
+  --dropdown-ink: var(--ink);
+  --dropdown-hover: #E4E6EB;
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  /* Fondo opaco también si el SDK conserva una superficie clara o translúcida. */
+  --dropdown-bg: #18191E;
+  --dropdown-ink: #F3F4F6;
+  --dropdown-hover: #343741;
+}
 
 /* Los menús nativos necesitan colores propios, también dentro del sandbox. */
 select, select option, select optgroup {
-  background-color: var(--surface);
-  color: var(--ink);
+  background-color: var(--dropdown-bg);
+  color: var(--dropdown-ink);
+}
+
+select:not(:disabled):hover {
+  background-color: var(--dropdown-hover);
+  border-color: var(--line-strong);
+}
+
+/* El menú nativo usa además el resaltado del sistema según color-scheme. */
+select option:hover, select option:focus, select option:checked {
+  background-color: var(--dropdown-hover);
+  color: var(--dropdown-ink);
 }
 
 * {
@@ -470,9 +492,9 @@ html, body {
   height: 28px;
   padding: 0 6px;
   border-radius: var(--r-sm);
-  background: var(--surface);
+  background: var(--dropdown-bg);
   border: 1px solid var(--line);
-  color: var(--ink);
+  color: var(--dropdown-ink);
   font-size: 12px;
   outline: none;
   cursor: pointer;
@@ -483,7 +505,8 @@ html, body {
   position: absolute;
   top: 100%;
   left: 0;
-  background: var(--surface);
+  background: var(--dropdown-bg);
+  color: var(--dropdown-ink);
   border: 1px solid var(--line-strong);
   border-radius: var(--r-md);
   box-shadow: 0 6px 18px rgba(0, 0, 0, 0.12);
@@ -503,7 +526,7 @@ html, body {
   gap: 8px;
   padding: 6px 10px;
   font-size: 12px;
-  color: var(--ink);
+  color: var(--dropdown-ink);
   border-radius: var(--r-sm);
   cursor: pointer;
   border: none;
@@ -512,8 +535,9 @@ html, body {
   text-align: left;
 }
 
-.dropdown-item:hover {
-  background: var(--hover);
+.dropdown-item:hover, .dropdown-item:focus-visible {
+  background: var(--dropdown-hover);
+  color: var(--dropdown-ink);
 }
 
 /* Área de contenido del Documento */
@@ -750,9 +774,9 @@ html, body {
   height: 26px;
   padding: 0 8px;
   border-radius: var(--r-sm);
-  background: var(--surface-2);
+  background: var(--dropdown-bg);
   border: 1px solid var(--line-strong);
-  color: var(--ink);
+  color: var(--dropdown-ink);
   font-family: var(--mono);
   font-size: 11.5px;
   outline: none;
@@ -1055,6 +1079,7 @@ html, body {
 .folder-action { border: 0; background: transparent; color: var(--ink-faint); cursor: pointer; padding: 3px; font-size: 16px; border-radius: 4px; }
 .folder-new { border: 0; background: transparent; color: var(--accent-solid); font: inherit; padding: 10px; cursor: pointer; }
 .manage-input { display: block; width: 100%; height: 38px; margin-top: 8px; padding: 6px 10px; border: 1px solid var(--line-strong); border-radius: var(--r-sm); background: var(--surface); color: var(--ink); font: inherit; }
+select.manage-input { background: var(--dropdown-bg); color: var(--dropdown-ink); }
 .manage-input[hidden] { display: none; }
 .manage-error { color: var(--danger); font-size: 12px; margin: 8px 0 0; }
 #manageLabel { font-size: 12px; font-weight: 600; }
@@ -1110,7 +1135,6 @@ html.wh-embedded .kanpad-sidebar { background: var(--surface); }
 .doc-code-copy-btn { color: var(--ink-soft); border-color: var(--line-strong); }
 .doc-code-copy-btn:hover, .code-tool-btn:hover { color: var(--ink); background: var(--hover); border-color: var(--line-strong); }
 .code-tool-btn.btn-glow { color: var(--accent-ink); }
-.code-lang-select option { color: var(--ink); background: var(--surface); }
 .modal-dialog { background: var(--bg); border-radius: var(--r-xl); }
 .modal-header, .modal-footer { background: var(--surface); }
 #actionModal { z-index: 1100; }
