@@ -2,12 +2,21 @@
 (function () {
   'use strict';
   const types = { doc: ['▤', 'Documento'], code: ['</>', 'Codepad'], grid: ['▦', 'Grid'], markdown: ['M↓', 'Markdown'] };
-  const collapsedFolders = new Set();
   function node(tag, className, text) {
     const el = document.createElement(tag); if (className) el.className = className; if (text !== undefined) el.textContent = text; return el;
   }
   function button(text, label, action, className = 'app-btn') {
     const el = node('button', className, text); el.type = 'button'; el.title = label; el.setAttribute('aria-label', label); el.onclick = action; return el;
+  }
+  function folderIcon(className) {
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('class', className); svg.setAttribute('viewBox', '0 0 24 24');
+    svg.setAttribute('fill', 'none'); svg.setAttribute('stroke', 'currentColor');
+    svg.setAttribute('stroke-width', '1.5'); svg.setAttribute('stroke-linecap', 'round'); svg.setAttribute('stroke-linejoin', 'round');
+    svg.setAttribute('aria-hidden', 'true'); svg.setAttribute('focusable', 'false');
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    path.setAttribute('d', 'M3 7V5a2 2 0 0 1 2-2h4l3 3h7a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Zm0 0h18');
+    svg.append(path); return svg;
   }
   function preview(note) {
     if (note.type === 'grid') return Object.values(note.grid?.cells || {}).map(c => c.value || '').filter(Boolean).join(' · ').slice(0, 150) || 'Hoja de cálculo vacía';
@@ -22,7 +31,7 @@
       function folderRow(id, name, icon, count, folder) {
         const row = node('div', 'folder-row');
         const open = button('', name, () => actions.folder(id), 'folder-link' + (activeFolder === id ? ' active' : ''));
-        open.append(node('span', 'folder-icon', icon), node('span', 'folder-name', name), node('span', 'folder-count', count));
+        open.append(folder ? folderIcon('folder-icon') : node('span', 'folder-icon', icon), node('span', 'folder-name', name), node('span', 'folder-count', count));
         if (activeFolder === id) open.setAttribute('aria-current', 'page');
         row.append(open);
         if (folder) {
@@ -34,7 +43,7 @@
       folderRow('all', 'Todas las notas', '▤', notes.length);
       folderRow('unfiled', 'Sin carpeta', '◇', notes.filter(n => !n.folderId).length);
       nav.append(node('p', 'folder-heading', 'CARPETAS'));
-      folders.forEach(f => folderRow(f.id, f.name, '▱', notes.filter(n => n.folderId === f.id).length, f));
+      folders.forEach(f => folderRow(f.id, f.name, null, notes.filter(n => n.folderId === f.id).length, f));
       nav.append(button('+ Nueva carpeta', 'Nueva carpeta', actions.createFolder, 'folder-new'));
       const current = folders.find(f => f.id === activeFolder);
       document.getElementById('homeTitle').textContent = current?.name || (activeFolder === 'unfiled' ? 'Sin carpeta' : 'Todas las notas');
@@ -63,34 +72,24 @@
         ordered.forEach(note => list.append(noteCard(note)));
         return;
       }
-      // La raíz contiene las notas sueltas y cada carpeta contiene sus propias notas.
-      // Agrupar después de filtrar conserva la búsqueda y el orden dentro de cada grupo.
+      // Las tarjetas navegan a la carpeta; sus notas solo se renderizan dentro de ella.
+      // Agrupar después de filtrar conserva la búsqueda y los contadores de resultados.
       const byFolder = new Map(folders.map(folder => [folder.id, []]));
       const rootNotes = [];
       ordered.forEach(note => {
         const group = byFolder.get(note.folderId);
         if (group) group.push(note); else rootNotes.push(note);
       });
+      const folderGrid = node('section', 'home-folder-grid'); folderGrid.setAttribute('aria-label', 'Carpetas');
       folders.forEach(folder => {
         const children = byFolder.get(folder.id);
         if (!children.length && visibleNotes.length !== notes.length) return;
-        const section = node('details', 'home-folder'); section.dataset.folderId = folder.id;
-        section.open = !collapsedFolders.has(folder.id);
-        section.addEventListener('toggle', () => {
-          if (section.open) collapsedFolders.delete(folder.id); else collapsedFolders.add(folder.id);
-        });
-        const summary = node('summary', 'home-folder-heading');
-        const icon = node('span', 'home-folder-icon', '📁'); icon.setAttribute('aria-hidden', 'true');
-        summary.append(icon, node('span', 'folder-name', folder.name), node('span', 'folder-count', `${children.length} nota${children.length === 1 ? '' : 's'}`));
-        const contents = node('div', 'home-folder-contents');
-        const toolbar = node('div', 'home-folder-toolbar');
-        toolbar.append(button('Abrir carpeta', 'Abrir carpeta ' + folder.name, () => actions.folder(folder.id)));
-        contents.append(toolbar);
-        const grid = node('div', 'home-notes home-folder-notes');
-        children.forEach(note => grid.append(noteCard(note)));
-        if (!children.length) grid.append(node('p', 'home-muted', 'Carpeta vacía'));
-        contents.append(grid); section.append(summary, contents); list.append(section);
+        const card = button('', 'Abrir carpeta ' + folder.name, () => actions.folder(folder.id), 'home-folder');
+        card.dataset.folderId = folder.id; card.title = folder.name;
+        card.append(folderIcon('home-folder-icon'), node('span', 'home-folder-name', folder.name), node('span', 'home-folder-count', `${children.length} nota${children.length === 1 ? '' : 's'}`));
+        folderGrid.append(card);
       });
+      if (folderGrid.childElementCount) list.append(folderGrid);
       if (rootNotes.length) {
         const root = node('section', 'home-root'); root.setAttribute('aria-label', 'Notas sin carpeta');
         root.append(node('h3', 'home-root-heading', 'Notas sin carpeta'));

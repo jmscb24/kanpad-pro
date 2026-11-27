@@ -6,7 +6,7 @@ Notas del proyecto organizadas en carpetas, con cuatro editores: **Docs**, **Cod
 
 Al abrir el plugin aparece **Inicio**. Desde ahí puedes crear carpetas y notas, buscar, filtrar, ordenar, renombrar, duplicar, mover y eliminar. Cada nota mantiene su tipo de editor. Eliminar una carpeta conserva las notas en **Sin carpeta**.
 
-En **Todas las notas**, cada carpeta tiene una sección con icono, contador y cuadrícula de notas. Puedes plegarla pulsando su cabecera o entrar con **Abrir carpeta**. Las notas sin carpeta aparecen juntas en la raíz, debajo de las carpetas. La búsqueda y los filtros se aplican antes de agrupar; el orden elegido se mantiene dentro de cada grupo. Las carpetas vacías se muestran en la biblioteca sin filtrar.
+En **Todas las notas**, las carpetas aparecen siempre cerradas como tarjetas compactas en una cuadrícula adaptable, con un icono SVG, su nombre y un contador. Pulsa una tarjeta (o usa Tab y Enter/Espacio) para abrir la carpeta; sus notas solo aparecen dentro de ella. Las notas sin carpeta aparecen juntas debajo de las tarjetas. La búsqueda y los filtros muestran las carpetas con resultados y sus contadores; el orden elegido se mantiene al abrirlas. Las carpetas vacías se muestran en la biblioteca sin filtrar. Las tarjetas y los iconos de la barra lateral siguen los modos claro y oscuro.
 
 ### Resaltado de código
 

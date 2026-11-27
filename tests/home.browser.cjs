@@ -1,5 +1,7 @@
 const { chromium } = require('playwright');
 const assert = require('node:assert/strict');
+const path = require('node:path');
+const os = require('node:os');
 const url = process.env.GRID_TEST_URL || 'http://127.0.0.1:8080';
 const oldNotes = [
   { id: 'old-doc', title: 'Documento anterior', type: 'doc', updatedAt: '2026-10-23T10:00:00Z', content: '<p id="before">Antes</p><p id="after">Después</p>' },
@@ -48,19 +50,44 @@ const oldNotes = [
     await docCard().getByRole('button', { name: 'Mover Documento anterior', exact: true }).click();
     const folderId = await page.locator('#manageFolder option').filter({ hasText: 'Trabajo' }).getAttribute('value');
     await page.locator('#manageFolder').selectOption(folderId); await page.locator('#manageForm button[type="submit"]').click();
-    const group = page.locator('.home-folder').filter({ has: docCard() });
+    const group = page.getByRole('button', { name: 'Abrir carpeta Trabajo', exact: true });
     assert.equal(await group.count(), 1);
-    assert.equal(await group.locator('summary .folder-name').innerText(), 'Trabajo');
+    assert.equal(await group.locator('.home-folder-name').innerText(), 'Trabajo');
+    assert.equal(await group.locator('.home-folder-count').innerText(), '1 nota');
+    assert.equal(await group.locator('svg[stroke="currentColor"]').count(), 1);
+    assert.equal(await group.locator('svg path').getAttribute('d'), await page.locator('#folderNav .folder-link svg path').getAttribute('d'));
+    assert.equal(await page.locator('#homeNotes details, #homeNotes summary').count(), 0);
+    assert.equal(await docCard().count(), 0, 'las notas de la carpeta no se renderizan en Inicio');
     assert.equal(await page.locator('.home-root .home-note').count(), 2);
-    await group.locator('summary').click();
-    assert.equal(await docCard().isVisible(), false);
-    await group.locator('summary').click();
-    assert.equal(await docCard().isVisible(), true);
-    await page.screenshot({ path: '/tmp/kanpad-home-grouped.png' });
+    await group.focus(); await page.keyboard.press('Enter');
+    assert.equal(await page.locator('#homeTitle').innerText(), 'Trabajo');
+    assert.equal(await docCard().isVisible(), true); assert.equal(await page.locator('.home-note').count(), 1);
+    await folder('Todas las notas');
+    await group.focus(); await page.keyboard.press('Space');
+    assert.equal(await page.locator('#homeTitle').innerText(), 'Trabajo');
+    await folder('Todas las notas');
+    await page.locator('#searchInput').fill('Documento anterior');
+    assert.equal(await group.count(), 1); assert.equal(await page.locator('.home-root').count(), 0);
+    await group.click(); assert.equal(await docCard().isVisible(), true);
+    await page.locator('#searchInput').fill(''); await folder('Todas las notas');
+    for (const theme of ['light', 'dark']) {
+      await page.evaluate(theme => document.documentElement.dataset.theme = theme, theme);
+      const resting = await group.evaluate(el => getComputedStyle(el).backgroundColor);
+      await group.hover(); await page.waitForTimeout(180);
+      assert.notEqual(await group.evaluate(el => getComputedStyle(el).backgroundColor), resting);
+      await page.locator('#homeSort').focus(); await page.keyboard.press('Tab');
+      assert.equal(await group.evaluate(el => el.matches(':focus-visible')), true);
+      assert.equal(await group.evaluate(el => getComputedStyle(el).outlineStyle), 'solid');
+      await page.screenshot({ path: path.join(os.tmpdir(), `kanpad-folder-${theme}-desktop.png`) });
+    }
     await page.setViewportSize({ width: 390, height: 844 });
     await page.waitForFunction(() => document.getElementById('sidebar').getBoundingClientRect().right <= 1);
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
-    await page.screenshot({ path: '/tmp/kanpad-home-grouped-mobile.png' });
+    for (const theme of ['light', 'dark']) {
+      await page.evaluate(theme => document.documentElement.dataset.theme = theme, theme);
+      await page.screenshot({ path: path.join(os.tmpdir(), `kanpad-folder-${theme}-mobile.png`) });
+    }
+    await group.click(); assert.equal(await page.locator('#homeTitle').innerText(), 'Trabajo');
     await page.setViewportSize({ width: 1440, height: 900 });
     await folder('Trabajo'); assert.equal(await page.locator('.home-note').count(), 1);
     await docCard().getByRole('button', { name: 'Renombrar Documento anterior', exact: true }).click(); await manageSubmit('Documento renombrado');
@@ -84,11 +111,11 @@ const oldNotes = [
     await page.locator('#searchInput').fill('');
     await page.locator('[data-filter="code"]').click(); assert.equal(await page.locator('.home-note').count(), 1);
     await page.locator('[data-filter="all"]').click();
-    await page.screenshot({ path: '/tmp/kanpad-home-desktop.png' });
+    await page.screenshot({ path: path.join(os.tmpdir(), 'kanpad-home-desktop.png') });
     await page.setViewportSize({ width: 390, height: 844 }); await page.waitForFunction(() => document.getElementById('btnToggleSidebar').getAttribute('aria-expanded') === 'false');
     await page.waitForFunction(() => document.getElementById('sidebar').getBoundingClientRect().right <= 1);
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
-    await page.screenshot({ path: '/tmp/kanpad-home-mobile.png' });
+    await page.screenshot({ path: path.join(os.tmpdir(), 'kanpad-home-mobile.png') });
     await page.setViewportSize({ width: 1440, height: 900 });
     while (await page.locator('.home-note').count()) {
       await page.locator('.home-note').first().getByRole('button', { name: /^Eliminar / }).click(); await page.locator('#actionModal.active').waitFor(); await page.locator('#actionSubmit').click();
